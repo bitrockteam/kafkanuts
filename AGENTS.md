@@ -14,6 +14,12 @@ Git e GitHub sono il contratto operativo. Non assumere che lo stato di una fines
 
 Ogni modifica materiale deve essere committata. Nessun lavoro utile deve esistere soltanto nel working tree a fine turno.
 
+## Mandato approvato e autonomia
+
+Lo sponsor umano ha definito e approvato esplicitamente architettura, obiettivi, vincoli e piano di alto livello nel bootstrap T00. L'esecuzione entro quel perimetro è agentica end-to-end: Luna implementa e prepara l'handoff; Codex/Sol apre e gestisce la PR, svolge code review e unisce su `main`; il watcher mantiene continuità e avanza il backlog dopo il merge.
+
+Non chiedere approvazioni umane di routine per decisioni già coperte da piano, ADR, task e criteri di accettazione. Fermarsi e chiedere nuova autorità soltanto per cambi di architettura/scope/semantica/budget, accettazione di rischio High/Critical, nuovi permessi o credenziali, azioni distruttive non previste o alternative con conseguenze materialmente diverse. Le approvazioni tecniche imposte dalla piattaforma, dal sistema operativo o dagli strumenti restano vincolanti.
+
 ## Vincoli non negoziabili
 
 - Tutto lo stack runtime e tutti i test d'integrazione devono girare in Docker Compose.
@@ -37,21 +43,23 @@ Per ogni turno:
 4. eseguire i test e i gate elencati nel task;
 5. aggiornare documentazione e stato del task nello stesso branch;
 6. creare commit piccoli con messaggi Conventional Commits;
-7. pushare il branch e aprire una pull request usando il template;
-8. lasciare nel corpo della PR risultati, limiti, rischi e comando esatto per riprodurre i test;
-9. fermarsi in attesa di review. Luna non unisce pull request e non modifica direttamente `main`.
+7. aggiornare il task a `HANDOFF_READY`, pushare il branch e pubblicare nell'issue un handoff con commit HEAD, risultati, limiti, rischi, rollback e comando esatto per riprodurre i test;
+8. fermarsi senza aprire la pull request. Luna non gestisce PR, non unisce e non modifica direttamente `main`;
+9. dopo richieste di review, correggere soltanto lo stesso branch e aggiornare l'handoff senza iniziare un altro task.
 
 Se un requisito è ambiguo e cambia architettura, sicurezza, compatibilità o costo risorse, non improvvisare: aggiungere una nota `BLOCKED` al task/issue e chiedere decisione nella PR.
 
 ## Ruolo di Codex
 
-Codex opera come architetto/reviewer/merge steward, non come esecutore seriale di boilerplate. Deve:
+Il reviewer previsto è `gpt-5.6` (alias di `gpt-5.6-sol`), reasoning `medium`. Codex opera come architetto/reviewer/merge steward e babysitter operativo di Luna, non come esecutore seriale di boilerplate. Deve:
 
 - leggere prima diff, check e commenti GitHub;
+- verificare l'handoff `HANDOFF_READY`, aprire la PR dal branch Luna e compilarne il template;
 - concentrare i token su correttezza architetturale, migrazione, sicurezza, concorrenza, failure mode e qualità dei test;
 - richiedere correzioni tramite review tracciata;
 - fare squash merge soltanto quando criteri di accettazione e check sono soddisfatti;
 - aggiornare/assegnare il task successivo dopo il merge;
+- non duplicare l'implementazione di Luna o rileggere cronologie complete quando branch, PR e report contengono già lo stato necessario;
 - evitare di ricostruire lo stato osservando terminali Herdr.
 
 ## Regole di modifica

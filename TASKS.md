@@ -2,7 +2,7 @@
 
 ## Uso
 
-Gli stati ammessi sono `READY`, `IN_PROGRESS`, `PR_OPEN`, `BLOCKED`, `DONE`. Dopo il bootstrap, ogni task deve avere una issue GitHub omonima. Un solo task può essere `IN_PROGRESS` per ogni esecutore. Luna seleziona il primo `READY` i cui prerequisiti sono `DONE`.
+Gli stati ammessi sono `READY`, `IN_PROGRESS`, `HANDOFF_READY`, `PR_OPEN`, `BLOCKED`, `DONE`. Dopo il bootstrap, ogni task deve avere una issue GitHub omonima. Un solo task può essere `IN_PROGRESS` per ogni esecutore. Luna seleziona il primo `READY` i cui prerequisiti sono `DONE`.
 
 Il completamento reale richiede il merge in `main`; una PR aperta non equivale a `DONE`.
 
