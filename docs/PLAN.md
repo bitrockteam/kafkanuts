@@ -52,7 +52,7 @@ Il repository produce prove tecniche e misure ripetibili; non calcola da solo il
 - Prezzi cloud, contratti, fatture, canoni, payback e percentuali di risparmio restano input esterni e temporalmente versionati; non vengono codificati come verità del laboratorio.
 - Dati cliente e informazioni contrattuali non entrano nel repository. Un eventuale pannello economico usa dataset sintetici o anonimizzati gestiti fuori dal codice pubblico.
 
-Il laboratorio può quindi alimentare curve di costo senza trasformare una misura sull'host di riferimento in una promessa universale.
+Il laboratorio può quindi alimentare curve di costo senza trasformare una misura su una singola macchina in una promessa universale.
 
 ## 3. Principi di progetto
 
@@ -250,14 +250,13 @@ Tempo è nel profilo `tracing`, non obbligatorio nel normale sviluppo. Correlati
 
 ## 11. Sizing e guardrail
 
-Misura host del 31 agosto 2026:
+Il dimensionamento è espresso tramite classi target portabili:
 
-- AMD Ryzen 7 9800X3D, 8 core/16 thread;
-- circa 61,6 GiB RAM host;
-- Docker Desktop espone 16 CPU e circa 30,2 GiB RAM;
-- oltre 570 GiB liberi sul disco di lavoro al momento della misura.
+- **Profili ridotti:** 8 CPU logiche, 16 GiB RAM host, 10-12 GiB disponibili a Docker e 60 GiB liberi. Eseguono `bootstrap` o un solo data plane.
+- **Full minimo:** 12 CPU logiche, 32 GiB RAM host, almeno 24 GiB disponibili a Docker e 120 GiB liberi. Non combina `ha`, `load` e `tracing` e lascia margine host limitato.
+- **Full raccomandato:** 16 CPU logiche, almeno 48 GiB RAM host, 30-32 GiB disponibili a Docker e 150 GiB liberi. È la classe prevista per osservabilità, failure test e uso confortevole dell'host.
 
-Obiettivo del profilo completo: 18-20 GiB stabili, massimo 22-24 GiB durante test; non oltre 10 CPU in uso ordinario e 12 CPU nei test. In questo modo restano circa 6-10 GiB nella VM Docker e oltre 30 GiB all'host per editor, browser e attività parallele.
+Obiettivo del profilo completo: 18-20 GiB stabili, massimo 22-24 GiB durante i test; non oltre 10 CPU in uso ordinario e 12 CPU nei test. Questi valori sono ipotesi di pianificazione: T02 misura startup e idle, T13 misura burst e soak e può alzare i requisiti prima della release.
 
 I limiti dettagliati e i criteri di autotuning sono in [RESOURCE-BUDGET.md](RESOURCE-BUDGET.md). Ogni PR che aggiunge un servizio aggiorna il budget e fornisce un'osservazione reale con `docker stats`.
 
@@ -445,7 +444,7 @@ Una decisione che cambia scope, semantica, sicurezza o budget richiede ADR prima
 - due cluster Flink operativi con confronto degli output, oppure scope formalmente modificato da un ADR dopo esito C di T10; in quel caso la release non dichiara portabilità Flink/NATS;
 - funzionalità JetStream elencate al paragrafo 6 coperte da test;
 - dashboard e log disponibili nel profilo completo;
-- profilo completo rispetta il budget sull'host di riferimento;
+- profilo completo rispetta il budget sulla classe target dichiarata;
 - smoke cross-platform documentati;
 - CI e security gate verdi;
 - SBOM, JAR, immagini e release `v0.1.0` pubblicati;
