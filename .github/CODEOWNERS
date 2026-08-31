@@ -1,0 +1,6 @@
+# Bootstrap owner. Add a distinct Bitrock reviewer/team before requiring approvals.
+* @Voloire
+
+/.github/ @Voloire
+/docs/adr/ @Voloire
+/compose*.y*ml @Voloire

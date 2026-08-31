@@ -1,0 +1,46 @@
+name: Task esecutivo
+description: Unità di lavoro collegata a TASKS.md
+title: "[TNN] "
+labels:
+  - task
+body:
+  - type: markdown
+    attributes:
+      value: Git e questa issue sono la fonte di verità. Un task produce una sola pull request principale.
+  - type: input
+    id: task
+    attributes:
+      label: Task ID
+      placeholder: TNN
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome osservabile
+      description: Cosa deve essere possibile verificare al termine.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope e non-scope
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criteri di accettazione
+      placeholder: Elencare test, resource gate, sicurezza e documentazione.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dipendenze e blocchi
+  - type: textarea
+    id: risks
+    attributes:
+      label: Rischi e rollback
+    validations:
+      required: true

@@ -1,0 +1,40 @@
+# Build outputs
+target/
+build/
+out/
+*.class
+
+# IDEs and editors
+.idea/
+.vscode/
+*.iml
+.project
+.classpath
+.settings/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Runtime and local data
+.env
+.env.*
+!.env.example
+data/
+logs/
+tmp/
+*.log
+
+# Test and security reports
+reports/
+coverage/
+dependency-check-report.*
+trivy-report.*
+gitleaks-report.*
+
+# Local certificates and secrets
+*.pem
+*.key
+*.p12
+*.jks
+secrets/
