@@ -20,7 +20,8 @@ La demo deve permettere a un operatore di:
 8. verificare ack, redelivery, deduplicazione, replay, DLQ e persistenza JetStream;
 9. migrare un servizio alla volta con shadow traffic, parity check, cutover e rollback;
 10. osservare metriche, log e trace correlati;
-11. produrre test, immagini, JAR, SBOM e report di sicurezza versionati.
+11. produrre test, immagini, JAR, SBOM e report di sicurezza versionati;
+12. esportare misure tecniche ripetibili utilizzabili da un modello di costo esterno, senza incorporare prezzi o dati cliente nel repository.
 
 Il risultato atteso non è soltanto uno stack che si avvia, ma una migrazione dimostrabile attraverso test e report ripetibili.
 
@@ -299,23 +300,16 @@ Git e GitHub sono la fonte durevole di verità. Lo stato di finestre, chat e ter
 
 ## Roadmap
 
-Il lavoro è diviso in task piccoli e ordinati:
+Il lavoro è diviso in task piccoli. La numerazione conserva il collegamento con le issue; T10 viene deliberatamente anticipato per ritirare il rischio Flink/NATS prima dei simulatori:
 
-1. scaffold Java e toolchain containerizzata;
-2. Compose, reti, profili e resource guardrails;
-3. contratti Avro;
-4. tre simulatori e adapter;
-5. stack Kafka, Streams e ksqlDB;
-6. cluster Flink Kafka;
-7. JetStream e suite delle primitive;
-8. Apicurio e Avro NATS;
-9. migrazione registry e schema ID mapping;
-10. spike e cluster Flink NATS;
-11. dual run, cutover e rollback;
-12. osservabilità;
-13. failure, replay, evolution e performance;
-14. hardening, SBOM e attestazioni;
-15. documentazione finale e release `v0.1.0`.
+1. **T01-T03:** toolchain, Compose e contratti Avro;
+2. **T10 anticipato:** gate e cluster Flink NATS, con decisione Table/SQL, DataStream-only o esclusione dallo scope commerciale iniziale;
+3. **T04:** tre simulatori e adapter;
+4. **T05-T07:** baseline Kafka, Flink Kafka e suite JetStream;
+5. **T08-T09:** Apicurio, Avro NATS e migrazione registry;
+6. **T11:** dual run, cutover e rollback;
+7. **T12-T13:** osservabilità, failure, replay, evolution e performance;
+8. **T14-T15:** hardening, SBOM, attestazioni, documentazione e release `v0.1.0`.
 
 Il backlog canonico, con dipendenze e gate, è in [TASKS.md](TASKS.md). Le issue [T01-T15](https://github.com/bitrockteam/kafkanuts/issues) ne costituiscono l'indice operativo su GitHub.
 
