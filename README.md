@@ -20,7 +20,8 @@ La demo deve permettere a un operatore di:
 8. verificare ack, redelivery, deduplicazione, replay, DLQ e persistenza JetStream;
 9. migrare un servizio alla volta con shadow traffic, parity check, cutover e rollback;
 10. osservare metriche, log e trace correlati;
-11. produrre test, immagini, JAR, SBOM e report di sicurezza versionati.
+11. produrre test, immagini, JAR, SBOM e report di sicurezza versionati;
+12. esportare misure tecniche ripetibili utilizzabili da un modello di costo esterno, senza incorporare prezzi o dati cliente nel repository.
 
 Il risultato atteso non è soltanto uno stack che si avvia, ma una migrazione dimostrabile attraverso test e report ripetibili.
 

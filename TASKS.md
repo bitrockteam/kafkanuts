@@ -81,7 +81,8 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
 
 - [ ] **T13 — Failure, replay, schema evolution e performance** (`BLOCKED` da T11,T12)
   - Matrice failure deterministica, replay, burst e soak.
-  - Gate: risultati JUnit/JSON, nessun claim non supportato dai dati.
+  - Misurare archetipi per payload, throughput, retention, replica e numero di consumer; esportare utilizzo CPU/RAM/storage e metriche di recovery come input neutro per curve di costo esterne.
+  - Gate: risultati JUnit/JSON e dataset CSV/Markdown riproducibile; nessun prezzo, percentuale di risparmio o claim non supportato dai dati.
 
 ## Wave 5 — Supply chain e release
 
@@ -92,6 +93,7 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
 
 - [ ] **T15 — Documentazione finale e release v0.1.0** (`BLOCKED` da T11-T14)
   - Runbook Windows/Linux/macOS, demo script, troubleshooting, limitations e cleanup.
+  - Separare nel demo script le prove tecniche dagli input commerciali; non includere fatture o dati cliente nel repository.
   - Pubblicare JAR, immagini, SBOM e release notes.
   - Gate: clone pulito e riproduzione completa da un secondo ambiente.
 

@@ -42,6 +42,18 @@ Il progetto è riuscito quando un operatore può, su Windows, Linux o macOS:
 - connettori proprietari obbligatori;
 - identità enterprise completa. TLS/auth NATS e Kafka possono essere dimostrati in un profilo dedicato dopo la baseline funzionale.
 
+### Confine fra laboratorio tecnico e offerta commerciale
+
+Il repository produce prove tecniche e misure ripetibili; non calcola da solo il business case di un cliente.
+
+- Kafka Streams e ksqlDB appartengono alla baseline Kafka e alla demo comparativa. La loro presenza non implica che l'offerta commerciale ne prometta il displacement.
+- Il percorso Flink/NATS è dichiarato soltanto secondo l'esito A, B o C del gate T10.
+- I test di capacità esportano throughput, payload, retention, replica, consumer, CPU, RAM, storage, latenza e recovery in un formato riutilizzabile.
+- Prezzi cloud, contratti, fatture, canoni, payback e percentuali di risparmio restano input esterni e temporalmente versionati; non vengono codificati come verità del laboratorio.
+- Dati cliente e informazioni contrattuali non entrano nel repository. Un eventuale pannello economico usa dataset sintetici o anonimizzati gestiti fuori dal codice pubblico.
+
+Il laboratorio può quindi alimentare curve di costo senza trasformare una misura sull'host di riferimento in una promessa universale.
+
 ## 3. Principi di progetto
 
 - **Separazione logica, compose unico:** un solo progetto Compose evita fragilità cross-project; reti e profili mantengono i domini separati.
@@ -278,6 +290,8 @@ I limiti dettagliati e i criteri di autotuning sono in [RESOURCE-BUDGET.md](RESO
 
 Tutti i test devono produrre report JUnit e, per le demo, JSON/Markdown archiviabili in CI.
 
+Le prove di capacità aggiungono un dataset tabellare con configurazione del workload, consumo CPU/RAM/storage, throughput, percentili e tempi di recovery. Il dataset contiene misure tecniche, non prezzi o risparmi: il modello economico applica successivamente tariffe e condizioni contrattuali con data e fonte proprie.
+
 ## 13. CI/CD e artefatti
 
 ### Pull request
@@ -395,6 +409,7 @@ Ogni gate genera JUnit per CI e JSON per analisi. Il report contiene almeno comm
 | Profilo completo supera 24 GiB Docker | ridurre componenti opzionali, heap o concorrenza senza fondere i Flink | T02,T12,T13 | profilo full non promuovibile |
 | Immagini o script non sono portabili | sostituire dipendenza o documentare piattaforma esclusa | T02,T14,T15 | release multipiattaforma bloccata |
 | Docker socket nei test espande il rischio | preferire integration test Compose; confinare eventuale socket | T14 | test ridisegnato o profilo isolato |
+| Le misure locali vengono presentate come risparmio universale | separare dataset tecnico, prezzi datati e dati cliente | T13,T15 | nessun claim economico pubblicabile |
 
 Una decisione che cambia scope, semantica, sicurezza o budget richiede ADR prima dell'implementazione dipendente.
 
@@ -410,6 +425,7 @@ Una decisione che cambia scope, semantica, sicurezza o budget richiede ADR prima
 | Migrazione reversibile | T11 | report M1-M6 per servizio e prova di rollback |
 | Osservabilità | T12 | dashboard provisionate e ricerca end-to-end per correlation ID |
 | Resilienza e capacità | T13 | failure matrix, burst, soak e sizing reale |
+| Input per curve di costo | T13,T15 | dataset tecnico ripetibile, senza prezzi o dati cliente |
 | Supply chain e release | T14,T15 | scan, SBOM, attestazioni, artefatti e runbook verificato |
 
 ## 19. Governance delle decisioni
