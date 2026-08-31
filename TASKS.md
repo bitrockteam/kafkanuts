@@ -29,9 +29,15 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
   - Generazione Java, fingerprint, compatibility policy e fixture deterministiche.
   - Gate: unit/contract test positivi e schema incompatibile rifiutato.
 
+- [ ] **T10 — Gate anticipato e cluster Flink NATS** (`BLOCKED` da T01,T02,T03)
+  - Eseguire prima dei simulatori la spike che decide se il percorso supportato è: **A)** adapter Table/SQL minimo, **B)** sola DataStream API, oppure **C)** processing Flink/NATS escluso dal displacement commerciale iniziale.
+  - Provare su un cluster `flink-nats` isolato: packaging ripetibile, Avro con registry, event time/watermark, finestra e join rappresentativi, checkpoint/recovery, redelivery, duplicati, parallelismo e backpressure.
+  - Registrare in ADR versioni, licenza, manutenzione, garanzia effettiva e budget massimo dell'eventuale adapter; non sviluppare un connettore general-purpose senza una nuova decisione.
+  - Gate: esito A/B/C riproducibile e machine-readable. Nessun claim Flink SQL/NATS è ammesso prima del superamento del percorso A.
+
 ## Wave 2 — Applicazioni e Kafka baseline
 
-- [ ] **T04 — Tre simulatori e adapter transport** (`BLOCKED` da T01,T03)
+- [ ] **T04 — Tre simulatori e adapter transport** (`BLOCKED` da T01,T03,T10)
   - Tre immagini/container Spring Boot distinti.
   - Porte applicative `kafka`, `nats`, `dual`, idempotenza e telemetry context.
   - Gate: unit test dominio/adapter e smoke senza data plane reale.
@@ -60,11 +66,6 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
 - [ ] **T09 — Migrazione registry e mapping schema ID** (`BLOCKED` da T05,T08)
   - Export/import, fingerprint mapping, decode/re-encode e rollback.
   - Gate: messaggi storici leggibili prima/dopo cambio registry, nessuna assunzione di ID uguali.
-
-- [ ] **T10 — Spike e cluster Flink NATS** (`BLOCKED` da T06,T07,T08)
-  - Valutare connector; registrare ADR go/no-go e implementare adapter confinato se necessario.
-  - JobManager/TaskManager indipendenti da `flink-kafka`.
-  - Gate: ack/checkpoint/recovery, backpressure, Avro e confronto funzionale.
 
 ## Wave 4 — Migrazione e osservabilità
 
@@ -96,6 +97,6 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
 
 ## Ordine PR suggerito
 
-`T01 || T02` → `T03` → `T04` → `T05` → `T06` → `T07` → `T08` → `T09` → `T10` → `T11` → `T12` → `T13` → `T14` → `T15`.
+`T01 || T02` → `T03` → `T10` → `T04` → (`T05` || `T07`) → `T06` → `T08` → `T09` → `T11` → `T12` → `T13` → `T14` → `T15`.
 
-T01 e T02 possono procedere in parallelo solo con branch/worktree distinti. T12 e T14 possono iniziare incrementalmente, ma diventano `DONE` soltanto dopo l'integrazione finale. Il watcher, per semplicità, assegna a Luna un solo task per volta salvo decisione esplicita registrata in issue.
+La numerazione identifica le issue e non implica più l'ordine cronologico: T10 viene anticipato per ritirare il rischio Flink/NATS prima di costruire i simulatori. T01 e T02 possono procedere in parallelo solo con branch/worktree distinti. T05 e T07 diventano indipendenti dopo T04, ma il watcher assegna a Luna un solo task per volta salvo decisione esplicita registrata in issue. T12 e T14 possono iniziare incrementalmente, ma diventano `DONE` soltanto dopo l'integrazione finale.

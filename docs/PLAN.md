@@ -1,5 +1,7 @@
 # Piano esecutivo di kafkanuts
 
+> **Stato del piano:** baseline architetturale approvata; implementazione non avviata. Le decisioni accettate sono vincoli, mentre versioni, prestazioni e garanzie semantiche restano ipotesi finché i gate indicati sotto non producono evidenze ripetibili.
+
 ## 1. Scopo e criteri di successo
 
 Il progetto realizza un ambiente dimostrativo completo, ripetibile e misurabile per migrare tre flussi applicativi da Kafka a NATS JetStream. Non è un benchmark universale né un blueprint di produzione: deve evidenziare capacità, differenze semantiche, rischi e tecniche di cutover con prove automatizzate.
@@ -155,15 +157,26 @@ La demo mantiene due installazioni indipendenti:
 
 Questo evita classpath e failure domain condivisi e rende il confronto credibile. I job applicano la stessa funzione logica e scrivono output confrontabili. Il parity verifier confronta risultati, latenze e duplicati usando `eventId`.
 
-Per NATS, il task iniziale è una spike con criteri go/no-go:
+Per NATS, la spike è un gate anticipato: viene eseguita dopo fondazioni Compose/toolchain e contratti Avro, ma prima dei simulatori. Il numero `T10` resta associato all'issue esistente e non ne indica l'ordine cronologico.
+
+La spike deve scegliere uno solo dei seguenti percorsi:
+
+- **A — Table/SQL minimo:** DDL JetStream realmente eseguibile tramite un adapter sottile, confinato e con budget di manutenzione esplicito;
+- **B — sola DataStream API:** supporto limitato ai job JVM la cui logica resta separata da source/sink;
+- **C — nessun Flink/NATS nel displacement iniziale:** il laboratorio può continuare su transport, schema e migrazione, ma non può fare claim di portabilità Flink verso NATS.
+
+I criteri go/no-go sono:
 
 - API/connettore compatibile con la versione Flink selezionata;
+- se viene scelto A, Table Factory, DDL, discovery e packaging SQL realmente provati;
 - ack legato correttamente a checkpoint e recovery;
 - bounded/unbounded source semantics documentate;
 - parallelismo, backpressure e serializzazione Avro provati;
 - licenza e manutenzione accettabili.
 
-Se nessun connettore maturo soddisfa i criteri, implementare un adapter minimo e confinato basato sulle Source/Sink API supportate, con test di recovery. Non fingere equivalenza exactly-once se non provata.
+Se nessun connettore maturo soddisfa i criteri, l'eventuale adapter resta minimo e confinato sulle API supportate. Un componente general-purpose richiede una nuova decisione e non è implicito nel piano. Non fingere equivalenza exactly-once se non provata.
+
+Il gate commerciale della prima settimana corrisponde a T10. Se toolchain, Compose e contratti non sono già riutilizzabili, T01-T03 sono prerequisiti tecnici precedenti all'avvio di quella settimana; non vengono nascosti dentro il time-box commerciale.
 
 ## 8. Migrazione dimostrata
 
@@ -307,15 +320,15 @@ Le GitHub Actions devono avere `permissions` minimi, concurrency cancellation e 
 Il dettaglio operativo è in [TASKS.md](../TASKS.md). Le macro-fasi sono:
 
 1. bootstrap/governance;
-2. Compose, reti e resource guardrails;
+2. scaffold/toolchain containerizzata, Compose, reti e resource guardrails;
 3. contratti Avro;
-4. simulatori e adapter;
-5. stack Kafka, Streams e ksqlDB;
-6. cluster Flink Kafka;
+4. gate anticipato e cluster Flink NATS, con decisione A/B/C;
+5. simulatori e adapter;
+6. stack Kafka, Streams e ksqlDB;
 7. JetStream e test delle sue primitive;
-8. Apicurio e codec Avro per NATS;
-9. migrazione registry e schema ID mapping;
-10. cluster Flink NATS dopo spike go/no-go;
+8. cluster Flink Kafka;
+9. Apicurio e codec Avro per NATS;
+10. migrazione registry e schema ID mapping;
 11. bridge, shadow, cutover e rollback;
 12. osservabilità;
 13. failure, replay, evolution e performance;
@@ -324,7 +337,82 @@ Il dettaglio operativo è in [TASKS.md](../TASKS.md). Le macro-fasi sono:
 
 Ogni fase è una o più PR, mai un unico mega-branch.
 
-## 16. Governance delle decisioni
+## 16. Gate e criteri di accettazione misurabili
+
+### Gate G0 — fondazioni riproducibili
+
+Prima della spike Flink/NATS devono essere fissati e verificati:
+
+- matrice di versioni e licenze per Java, Spring Boot, Maven, Avro, Kafka, NATS, Flink e registry;
+- immagini container disponibili sulle architetture dichiarate;
+- build, test e `docker compose config` senza Java o Maven installati sull'host;
+- budget Docker rilevato e soglie di arresto prima di avviare il profilo completo.
+
+### Gate G1 — portabilità Flink/NATS
+
+T10 produce un report con percorso A, B o C, commit, versioni, profilo Compose, fixture, risultati e limiti. Un esito A richiede DDL SQL reale; la sola presenza di source/sink DataStream non è prova di compatibilità SQL.
+
+### Gate G2 — contratto evento e registry
+
+Prima del dual run devono passare round-trip Kafka/NATS, compatibilità positiva e negativa, lettura di fixture storiche, cache/outage e mapping o re-encoding Confluent/Apicurio. Gli ID numerici dei registry non sono mai usati come identità portabile.
+
+### Gate G3 — parità e cutover
+
+Per ogni run il report deve distinguere almeno:
+
+- eventi pubblicati con ack dal producer;
+- consegne grezze, incluse redelivery;
+- eventi logici unici dopo idempotenza;
+- outcome terminali e messaggi in DLQ;
+- record fuori ordine rispetto alla sequenza dell'aggregato;
+- latenza end-to-end p50, p95 e p99;
+- checkpoint/restart e durata del rollback.
+
+I criteri minimi sono:
+
+- ogni evento accettato deve avere un outcome terminale atteso oppure una DLQ spiegabile; nessuna perdita silenziosa;
+- fixture deterministiche con parità del 100% su stato finale e checksum normalizzato;
+- duplicati di consegna sempre visibili nel report e un solo effetto logico quando il flusso dichiara idempotenza;
+- ordinamento per aggregato verificato soltanto per i flussi che lo richiedono e lo dichiarano;
+- messaggi conservati leggibili prima e dopo cambio registry e rollback;
+- latenza, throughput e RTO confrontati con soglie fissate prima del run sulla baseline M0, non scelte dopo aver visto il risultato.
+
+RPO, RTO e soglie prestazionali non vengono inventati come valori universali del laboratorio: il profilo baseline propone valori iniziali, ma ogni scenario registra il contratto usato per promuovere o bloccare la fase.
+
+### Formato dell'evidenza
+
+Ogni gate genera JUnit per CI e JSON per analisi. Il report contiene almeno commit, timestamp UTC, host/architettura, versioni immagini, profili Compose, seed delle fixture, configurazione non sensibile, conteggi, percentili, risultato e motivazione di eventuali esclusioni.
+
+## 17. Registro dei rischi e decisioni aperte
+
+| Rischio/ipotesi | Decisione richiesta | Task che produce evidenza | Effetto se fallisce |
+|---|---|---|---|
+| Il connector NATS non supporta Flink SQL/Table API | scegliere A, B o C | T10 | nessun claim SQL; possibile esclusione del processing |
+| Ack JetStream non è coordinabile con checkpoint | dichiarare garanzia effettiva e strategia di deduplica | T10,T13 | percorso solo at-least-once o blocco |
+| Subject/split non preservano ordering e parallelismo Kafka | classificare i flussi che richiedono per-key ordering | T07,T10,T13 | flusso giallo/rosso, redesign esplicito |
+| Apicurio ccompat differisce dalle API/feature usate | scegliere ccompat, API native o re-encoding | T08,T09 | registry resta Confluent nel primo cutover |
+| Bridge introduce loop o duplicati | fissare hop metadata, idempotenza e ownership | T11 | nessun cutover finché il test fallisce |
+| Profilo completo supera 24 GiB Docker | ridurre componenti opzionali, heap o concorrenza senza fondere i Flink | T02,T12,T13 | profilo full non promuovibile |
+| Immagini o script non sono portabili | sostituire dipendenza o documentare piattaforma esclusa | T02,T14,T15 | release multipiattaforma bloccata |
+| Docker socket nei test espande il rischio | preferire integration test Compose; confinare eventuale socket | T14 | test ridisegnato o profilo isolato |
+
+Una decisione che cambia scope, semantica, sicurezza o budget richiede ADR prima dell'implementazione dipendente.
+
+## 18. Tracciabilità requisito → evidenza
+
+| Capacità | Task principali | Evidenza obbligatoria |
+|---|---|---|
+| Build portabile e Compose | T01,T02 | build/test containerizzati, config e smoke cross-platform |
+| Contratti Avro | T03,T08,T09 | compatibility suite, fixture storiche e report cross-registry |
+| Portabilità Flink/NATS | T10 | report A/B/C, checkpoint/recovery e matrice versioni |
+| Baseline Kafka | T04,T05,T06 | report M0, restart e output Flink Kafka |
+| Semantiche JetStream | T07 | ack/redelivery/dedup/replay/DLQ/restart/HA machine-readable |
+| Migrazione reversibile | T11 | report M1-M6 per servizio e prova di rollback |
+| Osservabilità | T12 | dashboard provisionate e ricerca end-to-end per correlation ID |
+| Resilienza e capacità | T13 | failure matrix, burst, soak e sizing reale |
+| Supply chain e release | T14,T15 | scan, SBOM, attestazioni, artefatti e runbook verificato |
+
+## 19. Governance delle decisioni
 
 - gli ADR accettati descrivono decisioni durevoli;
 - le issue descrivono il lavoro;
@@ -333,12 +421,12 @@ Ogni fase è una o più PR, mai un unico mega-branch.
 - una modifica architetturale non concordata blocca il merge;
 - stato watcher/terminale non è prova di completamento.
 
-## 17. Definition of Done della release
+## 20. Definition of Done della release
 
 - tutte le fasi M0-M6 riproducibili da una guida unica;
 - tre simulatori migrati individualmente e rollback verificato;
 - Avro validato con Confluent e Apicurio;
-- due cluster Flink operativi con confronto degli output;
+- due cluster Flink operativi con confronto degli output, oppure scope formalmente modificato da un ADR dopo esito C di T10; in quel caso la release non dichiara portabilità Flink/NATS;
 - funzionalità JetStream elencate al paragrafo 6 coperte da test;
 - dashboard e log disponibili nel profilo completo;
 - profilo completo rispetta il budget sull'host di riferimento;
