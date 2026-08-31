@@ -55,6 +55,8 @@ Il reviewer previsto è `gpt-5.6` (alias di `gpt-5.6-sol`), reasoning `medium`. 
 
 - leggere prima diff, check e commenti GitHub;
 - verificare l'handoff `HANDOFF_READY`, aprire la PR dal branch Luna e compilarne il template;
+- confrontare prima l'elenco dei file modificati con lo scope del task e bloccare la PR, prima della review semantica, se contiene file estranei senza motivazione approvata;
+- iniziare la review semantica solo dopo che i gate richiesti hanno risultati visibili; failure o controlli mancanti tornano a Luna senza spendere token in una review completa;
 - concentrare i token su correttezza architetturale, migrazione, sicurezza, concorrenza, failure mode e qualità dei test;
 - richiedere correzioni tramite review tracciata;
 - fare squash merge soltanto quando criteri di accettazione e check sono soddisfatti;
