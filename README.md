@@ -231,14 +231,17 @@ La baseline prevista comprende:
 
 Event ID, correlation ID, transport e fase di migrazione sono campi strutturati. Le dashboard devono mostrare throughput, errori, latenza, consumer lag/pending, redelivery, DLQ, checkpoint Flink, errori dei registry e consumo CPU/RAM.
 
-## Budget della macchina di riferimento
+## Requisiti della macchina target
 
-Rilevazione iniziale:
+Le soglie iniziali della macchina target, da confermare con T02 e T13, sono:
 
-- AMD Ryzen 7 9800X3D, 8 core e 16 thread;
-- circa 61,6 GiB di RAM host;
-- Docker Desktop espone 16 CPU e circa 30,2 GiB di RAM;
-- oltre 570 GiB liberi sul disco di lavoro al momento della misura.
+| Classe target | CPU logiche | RAM host | RAM disponibile a Docker | Disco libero | Utilizzo previsto |
+|---|---:|---:|---:|---:|---|
+| profili ridotti | 8 | 16 GiB | 10-12 GiB | 60 GiB | `bootstrap` oppure un solo data plane |
+| full minimo | 12 | 32 GiB | almeno 24 GiB | 120 GiB | demo completa senza combinare `ha`, `load` e `tracing` |
+| full raccomandato | 16 | almeno 48 GiB | 30-32 GiB | 150 GiB | sviluppo confortevole, osservabilità e test di failure |
+
+Il profilo `full` su una macchina da 32 GiB è una configurazione minima: richiede limiti rigorosi e margine ridotto per editor e altri processi. Per HA o prove di carico è raccomandata la classe superiore.
 
 | Scenario | RAM Docker prevista |
 |---|---:|
@@ -249,7 +252,7 @@ Rilevazione iniziale:
 | demo completa | 18-20 GiB |
 | picco massimo consentito | 22-24 GiB |
 
-L'uso ordinario deve restare entro circa 10 CPU e i test entro 12. `ha`, `load` e `tracing` non vengono attivati insieme per default. Ogni PR che aggiunge un container deve dichiarare healthcheck, limiti, porte e delta misurato con `docker stats`.
+L'uso ordinario dello stack deve restare entro circa 10 CPU e i test entro 12. `ha`, `load` e `tracing` non vengono attivati insieme per default. Ogni PR che aggiunge un container deve dichiarare healthcheck, limiti, porte e delta misurato con `docker stats`.
 
 ## Strategia di test
 

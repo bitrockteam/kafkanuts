@@ -1,16 +1,16 @@
 # Budget risorse
 
-## Host di riferimento
+## Classi di macchina target
 
-Rilevazione del 31 agosto 2026:
+Il budget definisce requisiti di esecuzione portabili per ciascun profilo della demo.
 
-- CPU host: AMD Ryzen 7 9800X3D, 8 core e 16 thread;
-- RAM host: circa 61,6 GiB;
-- memoria esposta da Docker Desktop: circa 30,2 GiB;
-- CPU esposte da Docker Desktop: 16;
-- spazio libero sul volume di lavoro: oltre 570 GiB.
+| Classe target | CPU logiche | RAM host | RAM disponibile a Docker | Disco libero | Scope supportato |
+|---|---:|---:|---:|---:|---|
+| profili ridotti | 8 | 16 GiB | 10-12 GiB | 60 GiB | `bootstrap`, `kafka` oppure `nats`; non entrambi i Flink con osservabilità completa |
+| full minimo | 12 | 32 GiB | almeno 24 GiB | 120 GiB | `full` baseline; niente combinazione automatica di `ha`, `load` e `tracing` |
+| full raccomandato | 16 | almeno 48 GiB | 30-32 GiB | 150 GiB | `full`, osservabilità, failure test e margine per strumenti host |
 
-Il computer deve restare comodo per editor, browser, terminali Herdr e review. Il budget non sfrutta tutta la RAM disponibile alla VM Docker.
+Su Windows e macOS la memoria disponibile a Docker deve essere verificata separatamente dalla RAM installata. Su Linux vale il limite effettivo imposto al daemon o ai container. La classe minima da 32 GiB può eseguire il profilo completo solo con limiti rigorosi e margine host ridotto; HA e carico appartengono alla classe raccomandata.
 
 ## Budget iniziale del profilo completo
 
@@ -25,7 +25,7 @@ Il computer deve restare comodo per editor, browser, terminali Herdr e review. I
 | Margine runtime | init, page cache, spike transitori | 2,0 GiB | 2,0 GiB | 1,0 |
 | **Totale** | profilo completo | **18,0 GiB** | **24,5 GiB** | **11,5** |
 
-I valori sono ipotesi iniziali, da trasformare in limiti per servizio e correggere con misura. Il target ordinario è 18-20 GiB; il picco deve restare sotto 24 GiB. Il profilo `ha` aggiunge due nodi NATS e può richiedere 1-2 GiB ulteriori: non va combinato automaticamente con `load` e `tracing`.
+I valori sono ipotesi iniziali, da trasformare in limiti per servizio e correggere con misura. Il target ordinario è 18-20 GiB; il picco deve restare sotto 24 GiB. La somma dei massimi per servizio non rappresenta un consumo simultaneo garantito e serve come guardrail di configurazione. Il profilo `ha` aggiunge due nodi NATS e può richiedere 1-2 GiB ulteriori: non va combinato automaticamente con `load` e `tracing`.
 
 ## Heap iniziali
 
@@ -63,4 +63,4 @@ Questi valori non sono prescrizioni finali: T02 deve verificarli con startup, id
 
 ## Gate
 
-Una PR che introduce o modifica container fallisce la review se non specifica limiti, healthcheck e delta del budget. Prima della release, il profilo completo deve girare per almeno 30 minuti con carico baseline senza OOM, restart imprevisti o degradazione significativa dell'host.
+Una PR che introduce o modifica container fallisce la review se non specifica limiti, healthcheck e delta del budget. Prima della release, il profilo completo deve girare per almeno 30 minuti sulla classe `full minimo` con carico baseline senza OOM o restart imprevisti. La stessa prova sulla classe `full raccomandato` deve lasciare margine sufficiente per editor, browser e strumenti di osservazione.
