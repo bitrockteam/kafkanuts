@@ -294,12 +294,56 @@ Vulnerabilità High o Critical bloccano merge e release, salvo eccezione tempora
 
 Git e GitHub sono la fonte durevole di verità. Lo stato di finestre, chat e terminali è soltanto diagnostico.
 
-- **Luna** (`gpt-5.6-luna`, reasoning `medium`) implementa un task alla volta, esegue i gate, committa, pusha e apre la PR; non fa merge.
+- **Luna** (`gpt-5.6-luna`, reasoning `medium`) implementa un task alla volta, esegue i gate, committa, pusha il branch e prepara l'handoff; non apre PR e non fa merge.
 - **Watcher Herdr/PowerShell** mantiene liveness, osserva GitHub e può inviare continuazioni; non modifica codice, commit, branch o architettura.
-- **Codex** concentra i token su architettura, sicurezza, review e merge; legge diff, check e commenti GitHub invece delle finestre terminale.
+- **Codex reviewer** (`gpt-5.6`, alias di `gpt-5.6-sol`, reasoning `medium`) concentra i token su architettura, sicurezza, review e merge; legge diff, check e commenti GitHub invece delle finestre terminale.
 - **GitHub** conserva backlog, issue, branch, PR, check, review, decisioni e release.
 
 `main` richiede pull request, squash merge, cronologia lineare e conversazioni risolte; force push e cancellazione sono bloccati. I required checks vengono aggiunti al ruleset quando i relativi workflow esistono, evitando una protezione impossibile da soddisfare durante il bootstrap.
+
+### Mandato umano e autonomia agentica
+
+Lo sponsor umano ha definito l'architettura, gli obiettivi, i vincoli e il piano di alto livello e li ha approvati esplicitamente nel bootstrap T00. Entro quel perimetro, il ciclo di sviluppo è completamente agentico: selezione del task, implementazione, test, handoff, apertura PR, code review, correzioni, merge e avanzamento del backlog non richiedono approvazioni umane intermedie.
+
+L'approvazione del piano non autorizza cambiamenti impliciti al suo perimetro. Gli agenti tornano allo sponsor soltanto quando serve:
+
+- cambiare architettura, scope, garanzia semantica o budget approvato;
+- accettare un rischio di sicurezza o una vulnerabilità High/Critical;
+- ottenere credenziali, permessi, UAC o accesso a risorse non già autorizzate;
+- eseguire un'azione distruttiva o irreversibile non prevista dal piano;
+- risolvere un blocco per cui le alternative lecite producono conseguenze materialmente diverse.
+
+Una richiesta di chiarimento ordinaria non interrompe il flusso: gli agenti applicano le decisioni già registrate in piano, ADR, issue e criteri di accettazione. Le richieste di approvazione imposte dalla piattaforma o dall'ambiente restano comunque necessarie quando compaiono.
+
+## Supervisione Codex ed efficienza token
+
+Il flusso usa due livelli deliberatamente diversi:
+
+| Ruolo | Modello previsto | Responsabilità |
+|---|---|---|
+| esecutore | `gpt-5.6-luna`, reasoning `medium` | codice del singolo task, test, documentazione, commit, push del branch e handoff verificabile |
+| reviewer/merge steward | `gpt-5.6` (`gpt-5.6-sol`), reasoning `medium` | babysitting operativo, apertura e gestione PR, code review, decisioni ad alto rischio e squash merge su `main` |
+
+La separazione segue il posizionamento ufficiale dei modelli: [GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna) per workload efficienti e ad alto volume; [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) per ragionamento e coding complessi.
+
+Il babysitting di Codex non duplica l'implementazione di Luna. Il ciclo è:
+
+1. Luna seleziona un solo task `READY`, lavora sul branch dedicato, esegue i gate, pusha i commit e pubblica un handoff `HANDOFF_READY` con evidenze riproducibili.
+2. Codex/Sol verifica branch e handoff, apre la PR con il template completo e prende in carico stato, check, diff e commenti; non ricostruisce il lavoro leggendo la cronologia delle chat o osservando continuamente il terminale.
+3. Codex concentra la review su architettura, migrazione, sicurezza, concorrenza, failure mode, compatibilità, limiti risorse e qualità dei test.
+4. Se trova problemi, lascia richieste mirate e Luna corregge lo stesso branch della PR senza iniziare un altro task.
+5. Quando criteri di accettazione, conversazioni e check sono soddisfatti, Codex esegue lo squash merge, verifica `main` e rende disponibile il task successivo.
+
+L'efficienza token deriva da regole operative precise:
+
+- Git e GitHub conservano lo stato durevole; le chat sono contesto transitorio;
+- un task e una PR alla volta evitano lavoro duplicato e context switching;
+- Luna gestisce il volume implementativo, Codex usa il modello reviewer soltanto nei punti a maggiore impatto;
+- log completi non vengono riversati nel prompt: PR e report conservano sintesi, comandi, risultati e link agli artefatti;
+- Codex non riscrive boilerplate già assegnato a Luna e non approva claim che i test non dimostrano;
+- ambiguità che cambiano architettura, sicurezza, semantica o costo risorse diventano decisioni tracciate, non tentativi ripetuti.
+
+Il modello reviewer può essere cambiato solo con una decisione esplicita e registrata; non viene sostituito silenziosamente durante un task o una review.
 
 ## Roadmap
 

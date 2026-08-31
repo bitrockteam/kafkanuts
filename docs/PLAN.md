@@ -429,11 +429,14 @@ Una decisione che cambia scope, semantica, sicurezza o budget richiede ADR prima
 
 ## 19. Governance delle decisioni
 
+- lo sponsor umano ha definito e approvato esplicitamente questo piano di alto livello e le decisioni architetturali del bootstrap;
+- entro il perimetro approvato, implementazione, test, handoff, PR, review, merge e avanzamento del backlog sono agentici e non richiedono conferme umane per ogni task;
 - gli ADR accettati descrivono decisioni durevoli;
 - le issue descrivono il lavoro;
 - le PR contengono implementazione ed evidenze;
 - `TASKS.md` è l'indice ordinato e viene aggiornato dal branch che completa il task;
 - una modifica architetturale non concordata blocca il merge;
+- nuova autorità umana è richiesta solo per espansione di scope, nuovi permessi/credenziali, azioni distruttive non previste o accettazione esplicita di rischi non coperti;
 - stato watcher/terminale non è prova di completamento.
 
 ## 20. Definition of Done della release

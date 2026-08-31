@@ -4,6 +4,8 @@
 
 Il watcher mantiene liveness e continuità dell'esecutore Luna senza diventare un secondo implementatore. È un componente operativo locale; la sua configurazione concreta verrà affinata insieme quando l'ambiente Herdr sarà disponibile. Questo documento stabilisce già i confini che quella configurazione deve rispettare.
 
+Il ciclo approvato è agentico: il watcher non attende conferme umane tra task, handoff, PR e merge quando lo stato GitHub dimostra che i gate previsti sono soddisfatti. Notifica l'operatore soltanto nelle condizioni di escalation definite sotto.
+
 ## Autorità consentita
 
 Il watcher può:
@@ -11,6 +13,7 @@ Il watcher può:
 - osservare se il turno Luna è attivo, completato, in attesa o fallito;
 - leggere stato Git, issue, PR e check con comandi non mutanti;
 - inviare a Luna un prompt di continuazione basato sul task/PR corrente;
+- notificare Codex/Sol quando un task entra in `HANDOFF_READY`;
 - dopo un merge rilevato, indicare il primo task `READY` con prerequisiti soddisfatti;
 - applicare backoff e produrre log locali concisi;
 - notificare l'operatore quando serve autorità umana.
@@ -27,15 +30,16 @@ Il watcher non può:
 ## Macchina a stati
 
 ```text
-IDLE -> DISPATCHED -> RUNNING -> PR_OPEN -> WAITING_REVIEW
-  ^         |            |          |              |
-  |         +----------> BLOCKED <---+              |
-  +---------------- MERGED / NEXT_TASK <------------+
+IDLE -> DISPATCHED -> RUNNING -> HANDOFF_READY -> PR_OPEN -> WAITING_REVIEW
+  ^         |            |              |              |              |
+  |         +----------> BLOCKED <-------+--------------+              |
+  +---------------------- MERGED / NEXT_TASK <-------------------------+
 ```
 
 - `IDLE`: nessun task assegnabile o esecutore fermo.
 - `DISPATCHED`: prompt inviato, in attesa della prima evidenza.
 - `RUNNING`: branch/commit o attività Luna osservabile.
+- `HANDOFF_READY`: branch pushato e pacchetto di evidenze disponibile; Codex/Sol deve aprire la PR.
 - `PR_OPEN`: PR creata; il watcher smette di chiedere nuova implementazione.
 - `WAITING_REVIEW`: check/review in corso.
 - `BLOCKED`: serve decisione, permesso o intervento dopo soglia errori.
@@ -49,13 +53,13 @@ IDLE -> DISPATCHED -> RUNNING -> PR_OPEN -> WAITING_REVIEW
 4. stato del processo Luna;
 5. output terminale, solo diagnostico.
 
-Un messaggio “finito” non vale se non esiste commit/PR richiesto. Una PR unita prevale su una finestra rimasta aperta.
+Un messaggio “finito” di Luna non vale se non esistono commit remoto e handoff richiesto. Una PR unita prevale su una finestra rimasta aperta.
 
 ## Regole di continuazione
 
 Il prompt di continuazione deve essere breve e specifico:
 
-> Riprendi dal contratto Git. Controlla branch, working tree e PR del task corrente. Se la PR non esiste, completa i gate, committa, pusha e aprila. Se esiste con review/check falliti, correggi solo quei punti e aggiorna la stessa PR. Non iniziare un nuovo task e non fare merge.
+> Riprendi dal contratto Git. Controlla branch, working tree e task corrente. Se l'handoff non è pronto, completa i gate, committa, pusha e pubblica `HANDOFF_READY` nell'issue; non aprire PR. Se Codex/Sol ha aperto la PR con review/check falliti, correggi solo quei punti sullo stesso branch. Non iniziare un nuovo task e non fare merge.
 
 Dopo merge:
 
