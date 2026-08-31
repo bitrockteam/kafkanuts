@@ -343,6 +343,14 @@ L'efficienza token deriva da regole operative precise:
 - Codex non riscrive boilerplate già assegnato a Luna e non approva claim che i test non dimostrano;
 - ambiguità che cambiano architettura, sicurezza, semantica o costo risorse diventano decisioni tracciate, non tentativi ripetuti.
 
+### Perché la PR è il confine di review
+
+- **Sol rivede un artefatto stabile, non un terminale.** Diff, commit, report e check evitano scraping di finestre, output troncati e ricostruzioni fragili della sessione Luna.
+- **Lo scope viene controllato prima della review semantica.** Sol confronta l'elenco dei file modificati con task e prerequisiti autorizzati. Se la PR tocca file fuori scope senza una motivazione già approvata, la blocca e la rimanda a Luna prima di spendere token sul contenuto.
+- **Il branch isola il lavoro non approvato.** Finché la PR non viene unita, `main` e gli altri sviluppatori non ricevono il cambiamento. Chiudere PR e branch elimina l'impatto sul prodotto, anche se il tempo e il calcolo già consumati non sono recuperabili.
+- **GitHub conserva il verbale.** Issue, commit, handoff, check, commenti, decisioni e merge consentono di ricostruire chi ha fatto cosa, quali prove sono passate e perché il cambiamento è stato accettato.
+- **I gate meccanici precedono il giudizio.** Luna esegue i test richiesti prima di `HANDOFF_READY`; CI ripete i controlli disponibili. Sol avvia la review semantica soltanto quando risultati e failure sono visibili, concentrando il modello sui punti che richiedono giudizio.
+
 Il modello reviewer può essere cambiato solo con una decisione esplicita e registrata; non viene sostituito silenziosamente durante un task o una review.
 
 ## Roadmap
