@@ -3,5 +3,9 @@
   <modelVersion>4.0.0</modelVersion>
   <parent><groupId>com.bitrockteam.kafkanuts</groupId><artifactId>kafkanuts</artifactId><version>0.1.0-SNAPSHOT</version><relativePath>../../pom.xml</relativePath></parent>
   <artifactId>fulfillment-simulator</artifactId>
-  <dependencies><dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency></dependencies>
+  <dependencies>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter</artifactId></dependency>
+    <dependency><groupId>com.bitrockteam.kafkanuts</groupId><artifactId>transport-core</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
+  </dependencies>
 </project>

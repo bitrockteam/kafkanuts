@@ -86,6 +86,71 @@ services:
       timeout: 5s
       retries: 5
 
+  order-simulator:
+    profiles: ["t04"]
+    image: kafkanuts/order-simulator:t04
+    build:
+      context: .
+      dockerfile: Dockerfile.simulator
+      args: {MODULE: order-simulator}
+    command: ["sh", "-c", "mvn -B -ntp -pl modules/order-simulator org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.mainClass=com.bitrockteam.kafkanuts.order.OrderSimulator -Dexec.classpathScope=runtime"]
+    environment: ["TRANSPORT_MODE=${T04_ORDER_TRANSPORT:-dual}"]
+    cpus: "${T04_SIMULATOR_CPUS:-0.5}"
+    mem_limit: "${T04_SIMULATOR_MEMORY:-512m}"
+    networks: [tooling-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'exec-maven-plugin' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  payment-simulator:
+    profiles: ["t04"]
+    image: kafkanuts/payment-simulator:t04
+    build:
+      context: .
+      dockerfile: Dockerfile.simulator
+      args: {MODULE: payment-simulator}
+    command: ["sh", "-c", "mvn -B -ntp -pl modules/payment-simulator org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.mainClass=com.bitrockteam.kafkanuts.payment.PaymentSimulator -Dexec.classpathScope=runtime"]
+    environment: ["TRANSPORT_MODE=${T04_PAYMENT_TRANSPORT:-dual}"]
+    cpus: "${T04_SIMULATOR_CPUS:-0.5}"
+    mem_limit: "${T04_SIMULATOR_MEMORY:-512m}"
+    networks: [tooling-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'exec-maven-plugin' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  fulfillment-simulator:
+    profiles: ["t04"]
+    image: kafkanuts/fulfillment-simulator:t04
+    build:
+      context: .
+      dockerfile: Dockerfile.simulator
+      args: {MODULE: fulfillment-simulator}
+    command: ["sh", "-c", "mvn -B -ntp -pl modules/fulfillment-simulator org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.mainClass=com.bitrockteam.kafkanuts.fulfillment.FulfillmentSimulator -Dexec.classpathScope=runtime"]
+    environment: ["TRANSPORT_MODE=${T04_FULFILLMENT_TRANSPORT:-dual}"]
+    cpus: "${T04_SIMULATOR_CPUS:-0.5}"
+    mem_limit: "${T04_SIMULATOR_MEMORY:-512m}"
+    networks: [tooling-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'exec-maven-plugin' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  t04-smoke:
+    profiles: ["t04"]
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    command: ["mvn", "-B", "-ntp", "-pl", "modules/order-simulator,modules/payment-simulator,modules/fulfillment-simulator", "-am", "test"]
+    cpus: "${T04_SMOKE_CPUS:-1.0}"
+    mem_limit: "${T04_SMOKE_MEMORY:-1g}"
+    networks: [tooling-net]
+    volumes: ["maven-cache:/root/.m2"]
+
   t10-spike:
     profiles: ["t10"]
     build:

@@ -17,6 +17,7 @@
     <module>modules/order-simulator</module>
     <module>modules/payment-simulator</module>
     <module>modules/fulfillment-simulator</module>
+    <module>modules/transport-core</module>
     <module>modules/event-contracts</module>
     <module>modules/flink-nats-spike</module>
   </modules>
