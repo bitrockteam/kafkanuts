@@ -74,10 +74,10 @@ T05 introduce un singolo profilo Kafka con tre servizi runtime e un init usa-e-g
 | `kafka` | 1,0 | 1 GiB | +1 broker KRaft, heap 256-512 MiB |
 | `schema-registry` | 0,5 | 512 MiB | +Registry Confluent |
 | `ksqldb` | 0,5 | 1 GiB | +server ksqlDB, heap gestito dall'immagine |
-| `kafka-init` | nessun limite esplicito | nessun limite esplicito | container breve per topic/gate |
-| **Delta dichiarato** | **2,0 CPU** | **2,5 GiB max** | profilo `kafka` isolato |
+| `kafka-init` | 0,25 | 256 MiB | container breve per topic/gate |
+| **Delta dichiarato** | **2,25 CPU** | **2,75 GiB max** | profilo `kafka` isolato, inclusi init e gate |
 
-Il delta è un limite configurato, non una misura di consumo reale: il gate T05 registra correttezza funzionale, non sizing produttivo. Su una macchina della classe “profili ridotti” il profilo Kafka va eseguito senza gli altri data plane; il limite massimo configurato dei tre runtime è 2,5 GiB, oltre a page cache e container transitori. `kafka-init` deve essere terminato e rimosso dal cleanup prima che il report dichiari PASS.
+Il delta è un limite configurato, non una misura di consumo reale: il gate T05 registra correttezza funzionale, non sizing produttivo. Su una macchina della classe “profili ridotti” il profilo Kafka va eseguito senza gli altri data plane; il limite massimo configurato dei quattro servizi è 2,75 GiB, oltre a page cache e container transitori. `kafka-init` deve essere terminato e rimosso dal cleanup prima che il report dichiari PASS. Tutti i valori hanno default configurabili tramite `T05_KAFKA_INIT_CPUS` e `T05_KAFKA_INIT_MEMORY`.
 
 ## T02 — Tooling Compose misurato
 

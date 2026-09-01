@@ -10,9 +10,9 @@ T05 provides a single-node Kafka OSS KRaft baseline, Confluent Schema Registry, 
 ./scripts/t05-gate.ps1
 ```
 
-Both gates use Docker Compose only. They start Kafka, Schema Registry and ksqlDB, wait for real readiness, create topics idempotently, produce/consume an M0 event, configure `BACKWARD_TRANSITIVE`, register the canonical envelope v1 and a compatible v2 fixture, and assert that an incompatible v3 receives HTTP 409. They then register the payment fixture, apply both statements from the versioned ksqlDB query to the real server, and verify both objects with `DESCRIBE`.
+Both gates use Docker Compose only. They start Kafka, Schema Registry and ksqlDB, wait for real readiness, create topics idempotently, produce/consume an M0 event, configure `BACKWARD_TRANSITIVE`, register `modules/event-contracts/src/main/avro/EventEnvelope.avsc`, then register the separate `scripts/fixtures/EventEnvelope-compatible.avsc` and `scripts/fixtures/EventEnvelope-incompatible.avsc` artifacts. The incompatible fixture must receive HTTP 409. The gates use `scripts/ksql-apply.py` to apply the actual `modules/kafka-baseline/src/main/resources/ksqldb/payment-summary.sql` file to the real server, then verify both objects with `DESCRIBE`.
 
-The broker is restarted and the gate waits until the broker API is usable again, verifies the retained M0 event, publishes a new event and consumes both. Cleanup runs before the report is written; the report is marked PASS only when `compose ps -q` is empty and the named Kafka network is absent. The output is `reports/t05-gate.json` (ignored runtime evidence, regenerated on every run).
+The broker is restarted and the gate waits until the broker API is usable again, verifies the retained M0 event, publishes a new event and consumes both. Cleanup runs before the report is written; the report is marked PASS only when `compose ps -q` is empty and the effective network selected by `T05_KAFKA_NETWORK_NAME` (default `kafkanuts-kafka`) is absent. The output is `reports/t05-gate.json` (ignored runtime evidence, regenerated on every run). The report names the exact `EventEnvelope.avsc`, separate evolution fixtures and `payment-summary.sql` artifacts exercised.
 
 ## Java verification
 

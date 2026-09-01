@@ -5,6 +5,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ROOT_COMPOSE=$ROOT
 if command -v cygpath >/dev/null 2>&1; then ROOT_COMPOSE=$(cygpath -w "$ROOT"); fi
 REPORT="$ROOT/reports/t05-gate.json"
+KAFKA_NETWORK_NAME=${T05_KAFKA_NETWORK_NAME:-kafkanuts-kafka}
 mkdir -p "$ROOT/reports"
 compose() {
   docker compose --project-directory "$ROOT_COMPOSE" -f "$ROOT_COMPOSE/compose.yaml" --profile kafka "$@"
@@ -17,7 +18,7 @@ cleanup() {
 }
 verify_cleanup() {
   test -z "$(compose ps -q)"
-  ! docker network inspect kafkanuts-kafka >/dev/null 2>&1
+  ! docker network inspect "$KAFKA_NETWORK_NAME" >/dev/null 2>&1
 }
 trap cleanup EXIT HUP INT TERM
 compose up -d kafka schema-registry ksqldb
@@ -37,15 +38,14 @@ m0_output=$(run_kafka "kafka-console-consumer --bootstrap-server kafka:9092 --to
 test "$m0_output" = m0-event-1
 
 run_kafka "curl -fsS -X PUT -H 'Content-Type: application/vnd.schemaregistry.v1+json' --data '{\"compatibility\":\"BACKWARD_TRANSITIVE\"}' http://schema-registry:8081/config/orders-value"
-run_kafka "curl -fsS -X POST -H 'Content-Type: application/vnd.schemaregistry.v1+json' --data '{\"schemaType\":\"AVRO\",\"schema\":\"{\\\"type\\\":\\\"record\\\",\\\"name\\\":\\\"EventEnvelope\\\",\\\"namespace\\\":\\\"com.bitrockteam.kafkanuts.contracts\\\",\\\"fields\\\":[{\\\"name\\\":\\\"eventId\\\",\\\"type\\\":\\\"string\\\"},{\\\"name\\\":\\\"eventVersion\\\",\\\"type\\\":\\\"int\\\"}]}\"}' http://schema-registry:8081/subjects/orders-value/versions"
-run_kafka "curl -fsS -X POST -H 'Content-Type: application/vnd.schemaregistry.v1+json' --data '{\"schemaType\":\"AVRO\",\"schema\":\"{\\\"type\\\":\\\"record\\\",\\\"name\\\":\\\"EventEnvelope\\\",\\\"namespace\\\":\\\"com.bitrockteam.kafkanuts.contracts\\\",\\\"fields\\\":[{\\\"name\\\":\\\"eventId\\\",\\\"type\\\":\\\"string\\\"},{\\\"name\\\":\\\"eventVersion\\\",\\\"type\\\":\\\"int\\\"},{\\\"name\\\":\\\"tenant\\\",\\\"type\\\":\\\"string\\\",\\\"default\\\":\\\"default\\\"}]}\"}' http://schema-registry:8081/subjects/orders-value/versions"
-run_kafka "code=\$(curl -sS -o /tmp/incompatible.json -w '%{http_code}' -X POST -H 'Content-Type: application/vnd.schemaregistry.v1+json' --data '{\"schemaType\":\"AVRO\",\"schema\":\"{\\\"type\\\":\\\"record\\\",\\\"name\\\":\\\"EventEnvelope\\\",\\\"namespace\\\":\\\"com.bitrockteam.kafkanuts.contracts\\\",\\\"fields\\\":[{\\\"name\\\":\\\"eventId\\\",\\\"type\\\":\\\"string\\\"},{\\\"name\\\":\\\"eventVersion\\\",\\\"type\\\":\\\"string\\\"}]}\"}' http://schema-registry:8081/subjects/orders-value/versions); test \"\$code\" = 409"
+run_kafka 'schema=$(python3 -c "import json,sys; print(json.dumps(dict(schemaType=\"AVRO\",schema=json.dumps(json.load(open(sys.argv[1])),separators=(\",\",\":\")))))" /workspace/modules/event-contracts/src/main/avro/EventEnvelope.avsc); curl -fsS -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$schema" http://schema-registry:8081/subjects/orders-value/versions'
+run_kafka 'schema=$(python3 -c "import json,sys; print(json.dumps(dict(schemaType=\"AVRO\",schema=json.dumps(json.load(open(sys.argv[1])),separators=(\",\",\":\")))))" /workspace/scripts/fixtures/EventEnvelope-compatible.avsc); curl -fsS -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$schema" http://schema-registry:8081/subjects/orders-value/versions'
+run_kafka 'schema=$(python3 -c "import json,sys; print(json.dumps(dict(schemaType=\"AVRO\",schema=json.dumps(json.load(open(sys.argv[1])),separators=(\",\",\":\")))))" /workspace/scripts/fixtures/EventEnvelope-incompatible.avsc); code=$(curl -sS -o /tmp/incompatible.json -w "%{http_code}" -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$schema" http://schema-registry:8081/subjects/orders-value/versions); test "$code" = 409'
 compat=$(run_kafka "curl -fsS http://schema-registry:8081/config/orders-value")
 echo "$compat" | grep -q BACKWARD_TRANSITIVE
 run_kafka "curl -fsS -X POST -H 'Content-Type: application/vnd.schemaregistry.v1+json' --data '{\"schemaType\":\"AVRO\",\"schema\":\"{\\\"type\\\":\\\"record\\\",\\\"name\\\":\\\"PaymentEvent\\\",\\\"fields\\\":[{\\\"name\\\":\\\"event_id\\\",\\\"type\\\":\\\"string\\\"},{\\\"name\\\":\\\"payment_status\\\",\\\"type\\\":\\\"string\\\"}]}\"}' http://schema-registry:8081/subjects/payments-value/versions"
 
-run_kafka "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data \"{\\\"ksql\\\":\\\"CREATE STREAM payment_events (event_id VARCHAR KEY, payment_status VARCHAR) WITH (KAFKA_TOPIC='payments', VALUE_FORMAT='AVRO');\\\",\\\"streamsProperties\\\":{}}\" http://ksqldb:8088/ksql"
-run_kafka "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data '{\"ksql\":\"CREATE TABLE payment_status_summary AS SELECT payment_status, COUNT(*) AS payment_count FROM payment_events GROUP BY payment_status EMIT CHANGES;\",\"streamsProperties\":{}}' http://ksqldb:8088/ksql"
+run_kafka 'python3 /workspace/scripts/ksql-apply.py /workspace/modules/kafka-baseline/src/main/resources/ksqldb/payment-summary.sql'
 run_kafka "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data \"{\\\"ksql\\\":\\\"DESCRIBE payment_events;\\\",\\\"streamsProperties\\\":{}}\" http://ksqldb:8088/ksql | grep -q PAYMENT_EVENTS"
 run_kafka "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data \"{\\\"ksql\\\":\\\"DESCRIBE payment_status_summary;\\\",\\\"streamsProperties\\\":{}}\" http://ksqldb:8088/ksql | grep -q PAYMENT_STATUS_SUMMARY"
 
@@ -71,10 +71,10 @@ cat > "$REPORT" <<EOF
   "task": "T05",
   "result": "PASS",
   "m0": {"status": "PASS", "evidence": "orders produced and consumed through Kafka"},
-  "schema_compatibility": {"status": "PASS", "mode": "BACKWARD_TRANSITIVE", "evidence": "Registry accepted canonical envelope evolution and rejected incompatible eventVersion type"},
-  "ksqldb": {"status": "PASS", "evidence": "payment_events and payment_status_summary accepted and described by real ksqlDB"},
+  "schema_compatibility": {"status": "PASS", "mode": "BACKWARD_TRANSITIVE", "evidence": "Registry exercised modules/event-contracts/src/main/avro/EventEnvelope.avsc plus separate compatible/incompatible fixture artifacts"},
+  "ksqldb": {"status": "PASS", "artifact": "modules/kafka-baseline/src/main/resources/ksqldb/payment-summary.sql", "evidence": "versioned production SQL applied and objects described by real ksqlDB"},
   "restart": {"status": "PASS", "evidence": "broker became queryable after restart; retained m0-event-1 and accepted restart-event-1"},
-  "cleanup": {"status": "PASS", "evidence": "compose ps empty and kafkanuts-kafka network absent after down --volumes"},
+  "cleanup": {"status": "PASS", "network": "$KAFKA_NETWORK_NAME", "evidence": "compose ps empty and effective Kafka network absent after down --volumes"},
   "limitations": ["No Flink/NATS processing claim; Streams logic is verified by TopologyTestDriver"]
 }
 EOF

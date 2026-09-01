@@ -117,6 +117,10 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+    cpus: "${T05_KAFKA_INIT_CPUS:-0.25}"
+    mem_limit: "${T05_KAFKA_INIT_MEMORY:-256m}"
+    volumes:
+      - .:/workspace:ro
     networks: [kafka-net]
     restart: "no"
 

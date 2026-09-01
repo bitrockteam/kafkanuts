@@ -2,6 +2,7 @@ $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Compose = @('compose', '--project-directory', $Root, '-f', (Join-Path $Root 'compose.yaml'), '--profile', 'kafka')
 $Report = Join-Path $Root 'reports/t05-gate.json'
+$KafkaNetworkName = if ($env:T05_KAFKA_NETWORK_NAME) { $env:T05_KAFKA_NETWORK_NAME } else { 'kafkanuts-kafka' }
 New-Item -ItemType Directory -Force (Split-Path $Report) | Out-Null
 
 function Invoke-Compose {
@@ -26,8 +27,8 @@ function Invoke-KafkaCapture {
 function Assert-ComposeClean {
   $remaining = Invoke-ComposeCapture ps -q
   if ($remaining.Trim()) { throw "Compose resources remain: $remaining" }
-  & docker network inspect kafkanuts-kafka *> $null
-  if ($LASTEXITCODE -eq 0) { throw 'kafkanuts-kafka network remains after cleanup' }
+  & docker network inspect $KafkaNetworkName *> $null
+  if ($LASTEXITCODE -eq 0) { throw "$KafkaNetworkName network remains after cleanup" }
 }
 
 $clean = $false
@@ -57,12 +58,11 @@ try {
 
   $payment = '{"schemaType":"AVRO","schema":"{\"type\":\"record\",\"name\":\"PaymentEvent\",\"fields\":[{\"name\":\"event_id\",\"type\":\"string\"},{\"name\":\"payment_status\",\"type\":\"string\"}]}"}'
   Invoke-Kafka "curl -fsS -X POST -H 'Content-Type: application/vnd.schemaregistry.v1+json' --data '$payment' http://schema-registry:8081/subjects/payments-value/versions"
-  $createStream = '{"ksql":"CREATE STREAM payment_events (event_id VARCHAR KEY, payment_status VARCHAR) WITH (KAFKA_TOPIC=''payments'', VALUE_FORMAT=''AVRO'');","streamsProperties":{}}'
-  $createTable = '{"ksql":"CREATE TABLE payment_status_summary AS SELECT payment_status, COUNT(*) AS payment_count FROM payment_events GROUP BY payment_status EMIT CHANGES;","streamsProperties":{}}'
-  Invoke-Kafka "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data '$createStream' http://ksqldb:8088/ksql"
-  Invoke-Kafka "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data '$createTable' http://ksqldb:8088/ksql"
-  if ((Invoke-KafkaCapture "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data '{\"ksql\":\"DESCRIBE payment_events;\",\"streamsProperties\":{}}' http://ksqldb:8088/ksql") -notmatch 'PAYMENT_EVENTS') { throw 'ksql stream cannot be described' }
-  if ((Invoke-KafkaCapture "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data '{\"ksql\":\"DESCRIBE payment_status_summary;\",\"streamsProperties\":{}}' http://ksqldb:8088/ksql") -notmatch 'PAYMENT_STATUS_SUMMARY') { throw 'ksql table cannot be described' }
+  Invoke-Kafka 'python3 /workspace/scripts/ksql-apply.py /workspace/modules/kafka-baseline/src/main/resources/ksqldb/payment-summary.sql'
+  $describeStream = '{"ksql":"DESCRIBE payment_events;","streamsProperties":{}}'
+  $describeTable = '{"ksql":"DESCRIBE payment_status_summary;","streamsProperties":{}}'
+  if ((Invoke-KafkaCapture "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data '$describeStream' http://ksqldb:8088/ksql") -notmatch 'PAYMENT_EVENTS') { throw 'ksql stream cannot be described' }
+  if ((Invoke-KafkaCapture "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data '$describeTable' http://ksqldb:8088/ksql") -notmatch 'PAYMENT_STATUS_SUMMARY') { throw 'ksql table cannot be described' }
 
   Invoke-Compose restart kafka
   $brokerReady = $false
@@ -77,7 +77,7 @@ try {
   Invoke-Compose down --volumes --remove-orphans
   Assert-ComposeClean
   $clean = $true
-  [ordered]@{task='T05';result='PASS';m0=@{status='PASS';evidence='orders produced and consumed'};schema_compatibility=@{status='PASS';mode='BACKWARD_TRANSITIVE';evidence='canonical v1/v2 accepted; incompatible v3 returned HTTP 409'};ksqldb=@{status='PASS';evidence='real statements accepted and stream/table described'};restart=@{status='PASS';evidence='broker ready after restart; retained m0 and accepted new event'};cleanup=@{status='PASS';evidence='compose ps empty and network absent after verified down'}} | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $Report
+  [ordered]@{task='T05';result='PASS';m0=@{status='PASS';evidence='orders produced and consumed'};schema_compatibility=@{status='PASS';mode='BACKWARD_TRANSITIVE';artifact='modules/event-contracts/src/main/avro/EventEnvelope.avsc plus separate fixture files';evidence='canonical artifact v1 and compatible/incompatible fixture artifacts exercised; incompatible returned HTTP 409'};ksqldb=@{status='PASS';artifact='modules/kafka-baseline/src/main/resources/ksqldb/payment-summary.sql';evidence='versioned production SQL applied and stream/table described'};restart=@{status='PASS';evidence='broker ready after restart; retained m0 and accepted new event'};cleanup=@{status='PASS';network=$KafkaNetworkName;evidence='compose ps empty and effective network absent after verified down'}} | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $Report
   Get-Content $Report
 } finally {
   if (-not $clean) {
