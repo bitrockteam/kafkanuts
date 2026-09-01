@@ -7,13 +7,27 @@ New-Item -ItemType Directory -Force (Split-Path $Report) | Out-Null
 
 function Invoke-Compose {
   param([string[]]$Arguments)
-  & docker @Compose @Arguments
-  if ($LASTEXITCODE -ne 0) { throw "docker compose failed: $($Arguments -join ' ')" }
+  $savedErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & docker @Compose @Arguments
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $savedErrorActionPreference
+  }
+  if ($exitCode -ne 0) { throw "docker compose failed: $($Arguments -join ' ') (exit $exitCode)" }
 }
 function Invoke-ComposeCapture {
   param([string[]]$Arguments)
-  $output = & docker @Compose @Arguments 2>&1
-  if ($LASTEXITCODE -ne 0) { throw "docker compose failed: $($Arguments -join ' ')`n$output" }
+  $savedErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $output = & docker @Compose @Arguments
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $savedErrorActionPreference
+  }
+  if ($exitCode -ne 0) { throw "docker compose failed: $($Arguments -join ' ') (exit $exitCode)`n$output" }
   return ($output -join "`n")
 }
 function Invoke-Kafka {
