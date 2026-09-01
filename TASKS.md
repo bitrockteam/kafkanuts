@@ -19,7 +19,7 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
   - Aggiungere container builder/test; nessun requisito Maven/Java sull'host.
   - Gate: build e test identici da Windows/Linux/macOS tramite Compose.
 
-- [ ] **T02 — Compose, reti, profili e resource guardrails** (`PR_OPEN`)
+- [x] **T02 — Compose, reti, profili e resource guardrails** (`DONE`)
   - Creare struttura Compose, reti, volumi, healthcheck, `.env.example` e limiti CPU/RAM.
   - Implementare comandi portabili `doctor`, `config`, `up`, `down`, `status`, `reset` con PowerShell/POSIX solo se necessari.
   - Gate: `docker compose config` e smoke su runner/host; aggiornare budget con misure reali.
