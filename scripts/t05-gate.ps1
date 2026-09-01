@@ -30,29 +30,42 @@ function Invoke-ComposeCapture {
   if ($exitCode -ne 0) { throw "docker compose failed: $($Arguments -join ' ') (exit $exitCode)`n$output" }
   return ($output -join "`n")
 }
+function New-KafkaScriptFile {
+  param([string]$ScriptText)
+  $name = "t05-kafka-$([guid]::NewGuid().ToString('N')).sh"
+  $hostPath = Join-Path (Join-Path $Root 'reports') $name
+  $containerPath = "/workspace/reports/$name"
+  $normalized = $ScriptText -replace "`r`n", "`n" -replace "`r", "`n"
+  $content = "set -e`nset -o pipefail`n$normalized`n"
+  $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
+  [IO.File]::WriteAllText($hostPath, $content, $utf8NoBom)
+  [pscustomobject]@{ HostPath = $hostPath; ContainerPath = $containerPath }
+}
 function Invoke-Kafka {
   param([string]$ScriptText)
   $savedErrorActionPreference = $ErrorActionPreference
+  $temporary = New-KafkaScriptFile $ScriptText
   try {
     $ErrorActionPreference = 'Continue'
-    $script = "set -e`nset -o pipefail`n$ScriptText"
-    $script | & docker @Compose @('run', '-T', '--rm', '--no-deps', '--entrypoint', '/bin/bash', 'kafka-init', '-s')
+    & docker @Compose @('run', '-T', '--rm', '--no-deps', '--entrypoint', '/bin/bash', 'kafka-init', $temporary.ContainerPath)
     $exitCode = $LASTEXITCODE
   } finally {
     $ErrorActionPreference = $savedErrorActionPreference
+    Remove-Item -LiteralPath $temporary.HostPath -Force -ErrorAction SilentlyContinue
   }
   if ($exitCode -ne 0) { throw "Kafka script failed (exit $exitCode)`n$ScriptText" }
 }
 function Invoke-KafkaCapture {
   param([string]$ScriptText)
   $savedErrorActionPreference = $ErrorActionPreference
+  $temporary = New-KafkaScriptFile $ScriptText
   try {
     $ErrorActionPreference = 'Continue'
-    $script = "set -e`nset -o pipefail`n$ScriptText"
-    $output = $script | & docker @Compose @('run', '-T', '--rm', '--no-deps', '--entrypoint', '/bin/bash', 'kafka-init', '-s')
+    $output = & docker @Compose @('run', '-T', '--rm', '--no-deps', '--entrypoint', '/bin/bash', 'kafka-init', $temporary.ContainerPath)
     $exitCode = $LASTEXITCODE
   } finally {
     $ErrorActionPreference = $savedErrorActionPreference
+    Remove-Item -LiteralPath $temporary.HostPath -Force -ErrorAction SilentlyContinue
   }
   if ($exitCode -ne 0) { throw "Kafka script failed (exit $exitCode)`n$ScriptText`n$output" }
   return ($output -join "`n")
