@@ -31,12 +31,31 @@ function Invoke-ComposeCapture {
   return ($output -join "`n")
 }
 function Invoke-Kafka {
-  param([string]$Command)
-  Invoke-Compose @('run', '--rm', '--no-deps', '--entrypoint', '/bin/bash', 'kafka-init', '-ec', $Command)
+  param([string]$ScriptText)
+  $savedErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $script = "set -e`nset -o pipefail`n$ScriptText"
+    $script | & docker @Compose @('run', '-T', '--rm', '--no-deps', '--entrypoint', '/bin/bash', 'kafka-init', '-s')
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $savedErrorActionPreference
+  }
+  if ($exitCode -ne 0) { throw "Kafka script failed (exit $exitCode)`n$ScriptText" }
 }
 function Invoke-KafkaCapture {
-  param([string]$Command)
-  Invoke-ComposeCapture @('run', '--rm', '--no-deps', '--entrypoint', '/bin/bash', 'kafka-init', '-ec', $Command)
+  param([string]$ScriptText)
+  $savedErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $script = "set -e`nset -o pipefail`n$ScriptText"
+    $output = $script | & docker @Compose @('run', '-T', '--rm', '--no-deps', '--entrypoint', '/bin/bash', 'kafka-init', '-s')
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $savedErrorActionPreference
+  }
+  if ($exitCode -ne 0) { throw "Kafka script failed (exit $exitCode)`n$ScriptText`n$output" }
+  return ($output -join "`n")
 }
 function Assert-ComposeClean {
   $remaining = Invoke-ComposeCapture @('ps', '-q')
