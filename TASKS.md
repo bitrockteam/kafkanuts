@@ -42,7 +42,7 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
   - Porte applicative `kafka`, `nats`, `dual`, idempotenza e telemetry context.
   - Gate: unit test dominio/adapter e smoke senza data plane reale.
 
-- [ ] **T05 — Kafka OSS, Confluent Registry, Kafka Streams e ksqlDB** (`PR_OPEN`)
+- [x] **T05 — Kafka OSS, Confluent Registry, Kafka Streams e ksqlDB** (`DONE`)
   - Kafka single broker KRaft, topic init idempotente, Schema Registry e Avro wire format.
   - Topologia Kafka Streams e query ksqlDB versionate.
   - Gate: end-to-end M0, restart broker e schema compatibility.
