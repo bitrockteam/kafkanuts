@@ -1,8 +1,17 @@
-FROM maven:3.9.11-eclipse-temurin-21@sha256:463a1849665463254b2dd56e3a5b316f1596bc93d0571065c06ea05bb48ab8f4
+FROM maven:3.9.11-eclipse-temurin-21@sha256:463a1849665463254b2dd56e3a5b316f1596bc93d0571065c06ea05bb48ab8f4 AS build
 ARG MODULE
 WORKDIR /workspace
 COPY pom.xml .
 COPY modules modules
 COPY config config
 RUN mvn -B -ntp -pl modules/${MODULE} -am -DskipTests package
-CMD ["sh", "-c", "mvn -B -ntp -pl modules/${MODULE} org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.mainClass=com.bitrockteam.kafkanuts.order.OrderSimulator -Dexec.classpathScope=runtime"]
+
+FROM busybox:1.36.1-musl AS healthcheck
+
+FROM eclipse-temurin:21.0.8_9-jre
+ARG MODULE
+COPY --from=build /workspace/modules/${MODULE}/target/${MODULE}-0.1.0-SNAPSHOT.jar /app/app.jar
+COPY --from=healthcheck /bin/busybox /bin/busybox
+WORKDIR /app
+USER 10001
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

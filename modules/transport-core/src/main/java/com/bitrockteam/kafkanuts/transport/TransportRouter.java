@@ -19,6 +19,10 @@ public final class TransportRouter {
     this.nats = nats;
   }
 
+  public TransportMode mode() {
+    return mode;
+  }
+
   public List<String> destinations(EventEnvelope event) {
     return switch (mode) {
       case KAFKA -> List.of(kafka.transportName());

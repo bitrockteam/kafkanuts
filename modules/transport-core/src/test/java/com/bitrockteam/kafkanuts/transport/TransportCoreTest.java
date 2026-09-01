@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +32,22 @@ class TransportCoreTest {
   }
 
   @Test
+  void dualPublishesOnceToBothAdaptersAndRejectsDuplicate() {
+    IdempotencyStore kafkaStore = new IdempotencyStore();
+    IdempotencyStore natsStore = new IdempotencyStore();
+    TransportRouter router =
+        new TransportRouter(
+            TransportMode.DUAL,
+            new InMemoryTransportAdapter("kafka", kafkaStore),
+            new InMemoryTransportAdapter("nats", natsStore));
+    EventEnvelope event = event("evt-dual");
+    assertTrue(router.publish(event));
+    assertFalse(router.publish(event));
+    assertEquals(1, kafkaStore.size());
+    assertEquals(1, natsStore.size());
+  }
+
+  @Test
   void telemetryAndPayloadAreImmutable() {
     byte[] payload = {1, 2};
     EventEnvelope event =
@@ -44,6 +61,11 @@ class TransportCoreTest {
     payload[0] = 9;
     assertEquals(1, event.payload()[0]);
     assertEquals("trace", event.telemetryContext().traceId());
+    com.bitrockteam.kafkanuts.contracts.EventEnvelope canonical =
+        CanonicalEventMapper.toCanonical(event, "order-simulator", 1, "fingerprint");
+    assertEquals(event.eventId(), canonical.getEventId().toString());
+    assertEquals("trace", canonical.getCorrelationId().toString());
+    assertEquals(ByteBuffer.wrap(new byte[] {1, 2}), canonical.getPayload());
   }
 
   private EventEnvelope event(String id) {

@@ -93,16 +93,16 @@ services:
       context: .
       dockerfile: Dockerfile.simulator
       args: {MODULE: order-simulator}
-    command: ["sh", "-c", "mvn -B -ntp -pl modules/order-simulator org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.mainClass=com.bitrockteam.kafkanuts.order.OrderSimulator -Dexec.classpathScope=runtime"]
-    environment: ["TRANSPORT_MODE=${T04_ORDER_TRANSPORT:-dual}"]
+    environment: ["TRANSPORT_MODE=${T04_ORDER_TRANSPORT:-kafka}"]
     cpus: "${T04_SIMULATOR_CPUS:-0.5}"
     mem_limit: "${T04_SIMULATOR_MEMORY:-512m}"
     networks: [tooling-net]
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'exec-maven-plugin' || exit 1"]
-      interval: 15s
+      test: ["CMD", "/bin/busybox", "wget", "-q", "-O-", "http://127.0.0.1:8080/health"]
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 30s
 
   payment-simulator:
     profiles: ["t04"]
@@ -111,16 +111,16 @@ services:
       context: .
       dockerfile: Dockerfile.simulator
       args: {MODULE: payment-simulator}
-    command: ["sh", "-c", "mvn -B -ntp -pl modules/payment-simulator org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.mainClass=com.bitrockteam.kafkanuts.payment.PaymentSimulator -Dexec.classpathScope=runtime"]
-    environment: ["TRANSPORT_MODE=${T04_PAYMENT_TRANSPORT:-dual}"]
+    environment: ["TRANSPORT_MODE=${T04_PAYMENT_TRANSPORT:-nats}"]
     cpus: "${T04_SIMULATOR_CPUS:-0.5}"
     mem_limit: "${T04_SIMULATOR_MEMORY:-512m}"
     networks: [tooling-net]
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'exec-maven-plugin' || exit 1"]
-      interval: 15s
+      test: ["CMD", "/bin/busybox", "wget", "-q", "-O-", "http://127.0.0.1:8080/health"]
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 30s
 
   fulfillment-simulator:
     profiles: ["t04"]
@@ -129,16 +129,29 @@ services:
       context: .
       dockerfile: Dockerfile.simulator
       args: {MODULE: fulfillment-simulator}
-    command: ["sh", "-c", "mvn -B -ntp -pl modules/fulfillment-simulator org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.mainClass=com.bitrockteam.kafkanuts.fulfillment.FulfillmentSimulator -Dexec.classpathScope=runtime"]
     environment: ["TRANSPORT_MODE=${T04_FULFILLMENT_TRANSPORT:-dual}"]
     cpus: "${T04_SIMULATOR_CPUS:-0.5}"
     mem_limit: "${T04_SIMULATOR_MEMORY:-512m}"
     networks: [tooling-net]
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'exec-maven-plugin' || exit 1"]
-      interval: 15s
+      test: ["CMD", "/bin/busybox", "wget", "-q", "-O-", "http://127.0.0.1:8080/health"]
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 30s
+
+  t04-verify:
+    profiles: ["t04"]
+    image: curlimages/curl:8.10.1
+    command: ["sh", "-ec", "for pair in order-simulator:kafka payment-simulator:nats fulfillment-simulator:dual; do service=$${pair%%:*}; mode=$${pair##*:}; response=$$(curl -fsS http://$$service:8080/health); echo $$response; echo $$response | grep -F '\"transportMode\":\"'$$mode'\"'; done"]
+    depends_on:
+      order-simulator:
+        condition: service_healthy
+      payment-simulator:
+        condition: service_healthy
+      fulfillment-simulator:
+        condition: service_healthy
+    networks: [tooling-net]
 
   t04-smoke:
     profiles: ["t04"]
