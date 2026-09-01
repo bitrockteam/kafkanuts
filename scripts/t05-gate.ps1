@@ -73,8 +73,15 @@ function Invoke-KafkaCapture {
 function Assert-ComposeClean {
   $remaining = Invoke-ComposeCapture @('ps', '-q')
   if ($remaining.Trim()) { throw "Compose resources remain: $remaining" }
-  & docker network inspect $KafkaNetworkName *> $null
-  if ($LASTEXITCODE -eq 0) { throw "$KafkaNetworkName network remains after cleanup" }
+  $savedErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & docker network inspect $KafkaNetworkName *> $null
+    $networkInspectExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $savedErrorActionPreference
+  }
+  if ($networkInspectExitCode -eq 0) { throw "$KafkaNetworkName network remains after cleanup" }
 }
 
 $clean = $false
@@ -95,7 +102,7 @@ try {
   Invoke-Kafka "curl -fsS -X PUT -H 'Content-Type: application/vnd.schemaregistry.v1+json' --data '$compatibilityConfig' http://schema-registry:8081/config/orders-value"
   Invoke-Kafka 'schema=$(python3 -c "import json,sys; print(json.dumps(dict(schemaType=\"AVRO\",schema=json.dumps(json.load(open(sys.argv[1])),separators=(\",\",\":\")))))" /workspace/modules/event-contracts/src/main/avro/EventEnvelope.avsc); curl -fsS -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$schema" http://schema-registry:8081/subjects/orders-value/versions'
   Invoke-Kafka 'schema=$(python3 -c "import json,sys; print(json.dumps(dict(schemaType=\"AVRO\",schema=json.dumps(json.load(open(sys.argv[1])),separators=(\",\",\":\")))))" /workspace/scripts/fixtures/EventEnvelope-compatible.avsc); curl -fsS -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$schema" http://schema-registry:8081/subjects/orders-value/versions'
-  $incompatible = Invoke-KafkaCapture 'schema=$(python3 -c "import json,sys; print(json.dumps(dict(schemaType=\"AVRO\",schema=json.dumps(json.load(open(sys.argv[1])),separators=(\",\",\":\")))))" /workspace/scripts/fixtures/EventEnvelope-incompatible.avsc); code=$(curl -sS -o /tmp/incompatible.json -w "%{http_code}" -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$schema" http://schema-registry:8081/subjects/orders-value/versions); test "$code" = 409; printf '%s\n' "$code"'
+  $incompatible = Invoke-KafkaCapture 'schema=$(python3 -c "import json,sys; print(json.dumps(dict(schemaType=\"AVRO\",schema=json.dumps(json.load(open(sys.argv[1])),separators=(\",\",\":\")))))" /workspace/scripts/fixtures/EventEnvelope-incompatible.avsc); code=$(curl -sS -o /tmp/incompatible.json -w "%{http_code}" -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data "$schema" http://schema-registry:8081/subjects/orders-value/versions); test "$code" = 409; printf "%s\n" "$code"'
   if ($incompatible.Trim() -ne '409') { throw "incompatible schema was not rejected: $incompatible" }
   $compat = Invoke-KafkaCapture 'curl -fsS http://schema-registry:8081/config/orders-value'
   if ($compat -notmatch 'BACKWARD_TRANSITIVE') { throw "wrong compatibility: $compat" }
