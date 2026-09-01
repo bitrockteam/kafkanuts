@@ -29,7 +29,7 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
   - Generazione Java, fingerprint, compatibility policy e fixture deterministiche.
   - Gate: unit/contract test positivi e schema incompatibile rifiutato.
 
-- [ ] **T10 — Gate anticipato e cluster Flink NATS** (`HANDOFF_READY`)
+- [ ] **T10 — Gate anticipato e cluster Flink NATS** (`PR_OPEN`)
   - Eseguire prima dei simulatori la spike che decide se il percorso supportato è: **A)** adapter Table/SQL minimo, **B)** sola DataStream API, oppure **C)** processing Flink/NATS escluso dal displacement commerciale iniziale.
   - Provare su un cluster `flink-nats` isolato: packaging ripetibile, Avro con registry, event time/watermark, finestra e join rappresentativi, checkpoint/recovery, redelivery, duplicati, parallelismo e backpressure.
   - Registrare in ADR versioni, licenza, manutenzione, garanzia effettiva e budget massimo dell'eventuale adapter; non sviluppare un connettore general-purpose senza una nuova decisione.
