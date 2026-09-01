@@ -1,0 +1,61 @@
+{
+  "task": "T10",
+  "decision": "B",
+  "decision_label": "DataStream API only",
+  "status": "supported-in-spike",
+  "cluster": {
+    "service": "flink-nats",
+    "flink": "1.20.2",
+    "nats": "2.11.8",
+    "isolation": "dedicated Compose network"
+  },
+  "packaging": {
+    "build": "Maven reactor in Docker Compose",
+    "artifacts": ["flink-nats-spike jar"],
+    "connector_scope": "confined probe; no general-purpose connector"
+  },
+  "licenses": {
+    "flink": "Apache-2.0",
+    "nats_server": "Apache-2.0",
+    "jnats": "Apache-2.0",
+    "avro": "Apache-2.0"
+  },
+  "avro_registry": {
+    "codec": "shared event-contracts Avro schemas",
+    "registry": "not claimed; registry integration is a follow-up gate",
+    "identity": "schema fingerprint, not numeric registry ID"
+  },
+  "event_time_watermark": {
+    "api": "DataStream WatermarkStrategy",
+    "test": "monotonous timestamps in confined probe"
+  },
+  "window_join": {
+    "api": "DataStream window/join operators",
+    "result": "API packaging verified; representative runtime scenario remains follow-up"
+  },
+  "checkpoint_recovery": {
+    "checkpoint_interval_ms": 1000,
+    "result": "checkpoint configuration verified; NATS ack coordination not claimed"
+  },
+  "redelivery_duplicates": {
+    "result": "must remain at-least-once and be deduplicated by eventId",
+    "test_status": "contract documented; live failure scenario follow-up"
+  },
+  "parallelism_backpressure": {
+    "result": "parallelism and backpressure are DataStream concerns; one TaskManager baseline",
+    "test_status": "cluster packaging verified; load threshold follow-up"
+  },
+  "budget": {
+    "flink_jobmanager_memory": "2g",
+    "flink_taskmanager_memory": "2g",
+    "nats_memory": "256m",
+    "spike_memory": "1g",
+    "total_configured_max": "5.25g",
+    "guardrail": "below reduced-profile 10-12 GiB Docker budget"
+  },
+  "limits": [
+    "No Table/SQL Factory was claimed or introduced.",
+    "No exactly-once guarantee is claimed for NATS acknowledgements.",
+    "Registry compatibility and live redelivery/load tests are follow-up work before commercial claims."
+  ]
+}

@@ -18,6 +18,7 @@
     <module>modules/payment-simulator</module>
     <module>modules/fulfillment-simulator</module>
     <module>modules/event-contracts</module>
+    <module>modules/flink-nats-spike</module>
   </modules>
   <properties>
     <java.version>21</java.version>
