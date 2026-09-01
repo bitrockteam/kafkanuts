@@ -1,8 +1,8 @@
 # T10 — Flink/NATS gate
 
-## Decision
+## Decision: C
 
-**B — DataStream API only.** The spike proves the confined JVM/DataStream surface and a dedicated `flink-nats` Compose cluster. It does not claim a Flink SQL/Table Factory and does not add a general-purpose connector.
+**C — processing Flink/NATS is excluded from the initial commercial displacement.** The spike preserves reproducible packaging and NATS/Flink cluster connectivity evidence, but it does not claim a supported processing path. Decision B is forbidden unless every mandatory runtime gate has status `PASS`.
 
 ## Reproduction
 
@@ -12,19 +12,24 @@ docker compose --profile t10 build t10-spike
 docker compose --profile t10 run --rm t10-spike
 ```
 
-The report is `modules/flink-nats-spike/src/test/resources/t10-spike-report.json` and is intentionally machine-readable.
+Machine-readable evidence: `modules/flink-nats-spike/src/test/resources/t10-spike-report.json`.
 
-## Evidence matrix
+## Gate matrix
 
-| Area | Probe/evidence | Boundary |
+| Criterion | Status | Evidence / reason |
 |---|---|---|
-| Packaging/version/licence | Maven module, Flink 1.20.2, jnats 2.20.5, NATS 2.11.8, pinned Maven base image | no general connector artifact |
-| Avro/registry | shared `event-contracts` dependency and fingerprint identity | remote registry compatibility is follow-up |
-| Event time/watermark | `WatermarkStrategy` in DataStream probe | monotonous fixture only |
-| Window/join | DataStream API is the selected integration surface | representative live scenario is follow-up |
-| Checkpoint/recovery | checkpointing configured at 1 second | NATS ack/checkpoint coordination is not exactly-once |
-| Redelivery/duplicates | contract requires `eventId` deduplication and at-least-once semantics | live failure scenario is follow-up |
-| Parallelism/backpressure | one TaskManager/one slot baseline and bounded resource limits | load threshold is follow-up |
-| Budget | JobManager 2 GiB, TaskManager 2 GiB, NATS 256 MiB, spike 1 GiB; configured maximum 5.25 GiB | reduced-profile guardrail |
+| Packaging | PASS | Maven module builds in Docker; confined probe only |
+| Versions/licences/maintenance | PASS | Flink 1.20.2, NATS 2.11.8, jnats 2.20.5, Avro 1.12.0; Apache-2.0; maintenance bounded to probe |
+| Avro/registry | NOT_TESTED | no registry service or wire-compatibility test |
+| Event time/watermark | NOT_TESTED | API is constructed but no job is submitted |
+| Window/join | NOT_TESTED | no runtime window/join job |
+| Checkpoint/recovery | NOT_TESTED | no checkpoint/recovery observed |
+| Redelivery/dedup | NOT_TESTED | connectivity probe has no consumer or dedup assertion |
+| Parallelism/backpressure | NOT_TESTED | no submitted job or load threshold |
+| Budget | PASS | explicit limits 5.25 GiB; idle observation 315.5 MiB |
 
-The cluster is isolated on `kafkanuts-flink-nats`; its services have healthchecks and explicit CPU/memory limits. Any future adapter must remain confined to this spike unless a new architectural decision approves a general connector.
+The live test is `NatsConnectivityProbeTest`: it only connects to NATS and inspects server info. It does not publish, consume, redeliver, or deduplicate messages. The isolated Compose network and healthchecks prove packaging/connectivity, not Flink processing semantics.
+
+## Downstream consequences
+
+T04 must not claim Flink/NATS processing support or depend on a NATS Flink connector. Transport, schema and migration work may continue. Reopening B requires a new scoped spike (or ADR) with a submitted Flink job and PASS evidence for every mandatory runtime criterion, including registry, event-time/window-join, checkpoint/recovery, redelivery/dedup and backpressure.

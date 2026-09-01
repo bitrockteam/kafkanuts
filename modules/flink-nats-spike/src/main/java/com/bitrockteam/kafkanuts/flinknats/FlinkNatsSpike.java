@@ -7,8 +7,8 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
 /** The deliberately confined DataStream-only T10 probe; it is not a general-purpose connector. */
 public final class FlinkNatsSpike {
-  /** Selected gate outcome: DataStream API only. */
-  public static final String DECISION = "B";
+  /** Selected gate outcome: processing excluded from initial commercial displacement. */
+  public static final String DECISION = "C";
 
   /** Flink version exercised by the probe. */
   public static final String FLINK_VERSION = "1.20.2";
