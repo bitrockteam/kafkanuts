@@ -8,6 +8,9 @@
     <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
   </dependencies>
   <build>
+    <resources>
+      <resource><directory>src/main/avro</directory><includes><include>**/*.avsc</include></includes></resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.apache.avro</groupId><artifactId>avro-maven-plugin</artifactId><version>${avro.version}</version>
