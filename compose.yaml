@@ -37,6 +37,89 @@ services:
       retries: 3
       start_period: 10s
 
+  kafka:
+    image: confluentinc/cp-kafka:7.8.0
+    profiles: ["kafka"]
+    hostname: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,INTERNAL://kafka:29092,CONTROLLER://kafka:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+    cpus: "${T05_KAFKA_CPUS:-1.0}"
+    mem_limit: "${T05_KAFKA_MEMORY:-1g}"
+    networks: [kafka-net]
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.8.0
+    profiles: ["kafka"]
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    cpus: "${T05_REGISTRY_CPUS:-0.5}"
+    mem_limit: "${T05_REGISTRY_MEMORY:-512m}"
+    networks: [kafka-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/subjects >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  ksqldb:
+    image: confluentinc/cp-ksqldb-server:7.8.0
+    profiles: ["kafka"]
+    environment:
+      KSQL_BOOTSTRAP_SERVERS: kafka:29092
+      KSQL_HOST_NAME: ksqldb
+      KSQL_LISTENERS: http://0.0.0.0:8088
+      KSQL_KSQL_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      KSQL_KSQL_SERVICE_ID: kafkanuts_ksqldb_
+      KSQL_KSQL_SINK_REPARTITION_REQUIRED: "false"
+    depends_on:
+      schema-registry:
+        condition: service_healthy
+    cpus: "${T05_KSQL_CPUS:-0.5}"
+    mem_limit: "${T05_KSQL_MEMORY:-1g}"
+    networks: [kafka-net]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8088/info >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.8.0
+    profiles: ["kafka"]
+    command: ["/bin/bash", "-ec", "for topic in orders payments payment-counts fulfillments; do kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic $$topic --partitions 1 --replication-factor 1; done"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks: [kafka-net]
+    restart: "no"
+
   nats:
     image: nats:2.11.8-alpine
     profiles: ["t10"]
@@ -186,6 +269,9 @@ services:
       - maven-cache:/root/.m2
 
 networks:
+  kafka-net:
+    name: ${T05_KAFKA_NETWORK_NAME:-kafkanuts-kafka}
+    driver: bridge
   tooling-net:
     name: ${T02_NETWORK_NAME:-kafkanuts-tooling}
     driver: bridge
