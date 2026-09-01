@@ -1,11 +1,47 @@
 services:
   builder:
+    profiles: ["bootstrap", "test"]
     build:
       context: .
       dockerfile: Dockerfile.builder
     command: ["mvn", "-B", "-ntp", "-DskipTests", "verify"]
+    init: true
+    cpus: "${T02_BUILDER_CPUS:-1.0}"
+    mem_limit: "${T02_BUILDER_MEMORY:-1g}"
+    networks: [tooling-net]
+    volumes:
+      - maven-cache:/root/.m2
+    healthcheck:
+      test: ["CMD", "mvn", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   test:
+    profiles: ["test"]
     build:
       context: .
       dockerfile: Dockerfile.test
     command: ["mvn", "-B", "-ntp", "verify"]
+    init: true
+    cpus: "${T02_TEST_CPUS:-1.0}"
+    mem_limit: "${T02_TEST_MEMORY:-1g}"
+    networks: [tooling-net]
+    volumes:
+      - maven-cache:/root/.m2
+    healthcheck:
+      test: ["CMD", "mvn", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  tooling-net:
+    name: ${T02_NETWORK_NAME:-kafkanuts-tooling}
+    driver: bridge
+
+volumes:
+  maven-cache:
+    name: ${T02_MAVEN_CACHE_VOLUME:-kafkanuts-maven-cache}
