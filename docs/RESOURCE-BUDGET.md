@@ -65,6 +65,20 @@ Questi valori non sono prescrizioni finali: T02 deve verificarli con startup, id
 
 Una PR che introduce o modifica container fallisce la review se non specifica limiti, healthcheck e delta del budget. Prima della release, il profilo completo deve girare per almeno 30 minuti sulla classe `full minimo` con carico baseline senza OOM o restart imprevisti. La stessa prova sulla classe `full raccomandato` deve lasciare margine sufficiente per editor, browser e strumenti di osservazione.
 
+## T05 — Delta Kafka baseline
+
+T05 introduce un singolo profilo Kafka con tre servizi runtime e un init usa-e-getta. I limiti Compose sono il budget dichiarato e sono configurabili via `.env`:
+
+| Servizio | Limite CPU | Limite memoria | Delta T05 |
+|---|---:|---:|---|
+| `kafka` | 1,0 | 1 GiB | +1 broker KRaft, heap 256-512 MiB |
+| `schema-registry` | 0,5 | 512 MiB | +Registry Confluent |
+| `ksqldb` | 0,5 | 1 GiB | +server ksqlDB, heap gestito dall'immagine |
+| `kafka-init` | 0,25 | 256 MiB | container breve per topic/gate |
+| **Delta dichiarato** | **2,25 CPU** | **2,75 GiB max** | profilo `kafka` isolato, inclusi init e gate |
+
+Il delta è un limite configurato, non una misura di consumo reale: il gate T05 registra correttezza funzionale, non sizing produttivo. Su una macchina della classe “profili ridotti” il profilo Kafka va eseguito senza gli altri data plane; il limite massimo configurato dei quattro servizi è 2,75 GiB, oltre a page cache e container transitori. `kafka-init` deve essere terminato e rimosso dal cleanup prima che il report dichiari PASS. Ogni limite ha il proprio default configurabile: `kafka` usa `T05_KAFKA_CPUS`/`T05_KAFKA_MEMORY`, `schema-registry` usa `T05_REGISTRY_CPUS`/`T05_REGISTRY_MEMORY`, `ksqldb` usa `T05_KSQL_CPUS`/`T05_KSQL_MEMORY` e `kafka-init` usa `T05_KAFKA_INIT_CPUS`/`T05_KAFKA_INIT_MEMORY`.
+
 ## T02 — Tooling Compose misurato
 
 T02 introduce soltanto il builder/test Maven containerizzato. I limiti sono configurabili tramite `.env` e hanno questi default:
