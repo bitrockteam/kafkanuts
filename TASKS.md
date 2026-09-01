@@ -14,7 +14,7 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
 
 ## Wave 1 — Fondazioni
 
-- [ ] **T01 — Scaffold multi-module Java e toolchain containerizzata** (`READY`)
+- [ ] **T01 — Scaffold multi-module Java e toolchain containerizzata** (`HANDOFF_READY`)
   - Creare Maven wrapper/multi-module, parent BOM, Java 21, formatter, Checkstyle, SpotBugs e unit test smoke.
   - Aggiungere container builder/test; nessun requisito Maven/Java sull'host.
   - Gate: build e test identici da Windows/Linux/macOS tramite Compose.
