@@ -1,0 +1,11 @@
+services:
+  builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.builder
+    command: ["mvn", "-B", "-ntp", "-DskipTests", "verify"]
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    command: ["mvn", "-B", "-ntp", "verify"]

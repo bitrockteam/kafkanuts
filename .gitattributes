@@ -7,3 +7,5 @@
 *.ico binary
 *.jar binary
 *.zip binary
+mvnw text eol=lf
+mvnw.cmd text eol=crlf
