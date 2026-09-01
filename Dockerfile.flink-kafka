@@ -1,0 +1,11 @@
+FROM maven:3.9.11-eclipse-temurin-21 AS build
+WORKDIR /workspace
+COPY pom.xml .
+COPY modules modules
+COPY config config
+RUN mvn -B -ntp -pl modules/flink-kafka -am package -DskipTests -Djava.version=17 -Dmaven.compiler.release=17
+RUN mvn -B -ntp -pl modules/flink-kafka dependency:copy-dependencies -DskipTests -DincludeScope=compile -DoutputDirectory=/workspace/modules/flink-kafka/target/dependency
+
+FROM flink:1.20.2-scala_2.12-java17
+COPY --from=build /workspace/modules/flink-kafka/target/flink-kafka-0.1.0-SNAPSHOT.jar /opt/flink/usrlib/flink-kafka-job.jar
+COPY --from=build /workspace/modules/flink-kafka/target/dependency/*.jar /opt/flink/lib/

@@ -113,7 +113,7 @@ services:
   kafka-init:
     image: confluentinc/cp-kafka:7.8.0
     profiles: ["kafka"]
-    command: ["/bin/bash", "-ec", "for topic in orders payments payment-counts fulfillments; do kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic $$topic --partitions 1 --replication-factor 1; done"]
+    command: ["/bin/bash", "-ec", "for topic in orders payments payment-counts fulfillments t06-events t06-parity-output; do kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic $$topic --partitions 1 --replication-factor 1; done"]
     depends_on:
       kafka:
         condition: service_healthy
@@ -123,6 +123,96 @@ services:
       - .:/workspace:ro
     networks: [kafka-net]
     restart: "no"
+
+  flink-kafka-checkpoint-init:
+    image: flink:1.20.2-scala_2.12-java17
+    profiles: ["t06"]
+    user: "0:0"
+    cpus: "${T06_CHECKPOINT_INIT_CPUS:-0.25}"
+    mem_limit: "${T06_CHECKPOINT_INIT_MEMORY:-256m}"
+    entrypoint: ["/bin/bash"]
+    command: ["-ec", "mkdir -p /opt/flink/checkpoints && chown -R flink:flink /opt/flink/checkpoints"]
+    volumes:
+      - flink-kafka-checkpoints:/opt/flink/checkpoints
+    networks: [flink-kafka-net]
+    restart: "no"
+
+  flink-kafka-jobmanager:
+    image: kafkanuts/flink-kafka:t06
+    profiles: ["t06"]
+    hostname: flink-kafka-jobmanager
+    user: "0:0"
+    command: ["jobmanager"]
+    environment:
+      JOB_MANAGER_RPC_ADDRESS: flink-kafka-jobmanager
+    cpus: "${T06_FLINK_JM_CPUS:-0.5}"
+    mem_limit: "${T06_FLINK_JM_MEMORY:-2g}"
+    networks: [flink-kafka-net, kafka-net]
+    volumes:
+      - flink-kafka-checkpoints:/opt/flink/checkpoints
+    depends_on:
+      kafka:
+        condition: service_healthy
+      flink-kafka-checkpoint-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/overview >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  flink-kafka-taskmanager:
+    image: kafkanuts/flink-kafka:t06
+    profiles: ["t06"]
+    hostname: flink-kafka-taskmanager
+    user: "0:0"
+    command: ["taskmanager"]
+    environment:
+      JOB_MANAGER_RPC_ADDRESS: flink-kafka-jobmanager
+      TASK_MANAGER_NUMBER_OF_TASK_SLOTS: "1"
+    cpus: "${T06_FLINK_TM_CPUS:-0.5}"
+    mem_limit: "${T06_FLINK_TM_MEMORY:-2g}"
+    networks: [flink-kafka-net, kafka-net]
+    volumes:
+      - flink-kafka-checkpoints:/opt/flink/checkpoints
+    depends_on:
+      flink-kafka-jobmanager:
+        condition: service_healthy
+      flink-kafka-checkpoint-init:
+        condition: service_completed_successfully
+
+  flink-kafka-submit:
+    profiles: ["t06"]
+    image: kafkanuts/flink-kafka:t06
+    build:
+      context: .
+      dockerfile: Dockerfile.flink-kafka
+    cpus: "${T06_SUBMIT_CPUS:-0.5}"
+    mem_limit: "${T06_SUBMIT_MEMORY:-1g}"
+    command: ["flink", "run", "-d", "-m", "flink-kafka-jobmanager:8081", "-c", "com.bitrockteam.kafkanuts.flinkkafka.FlinkKafkaParityJob", "/opt/flink/usrlib/flink-kafka-job.jar"]
+    networks: [flink-kafka-net, kafka-net]
+    volumes:
+      - .:/workspace:ro
+    depends_on:
+      flink-kafka-jobmanager:
+        condition: service_healthy
+      flink-kafka-taskmanager:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    restart: "no"
+
+  t06-gate:
+    image: confluentinc/cp-kafka:7.8.0
+    profiles: ["t06"]
+    cpus: "${T06_GATE_CPUS:-0.25}"
+    mem_limit: "${T06_GATE_MEMORY:-256m}"
+    entrypoint: ["/workspace/scripts/t06-gate-inner.sh"]
+    command: ["pre"]
+    volumes:
+      - .:/workspace:ro
+    networks: [flink-kafka-net, kafka-net]
 
   nats:
     image: nats:2.11.8-alpine
@@ -282,7 +372,12 @@ networks:
   flink-nats-net:
     name: ${T10_NETWORK_NAME:-kafkanuts-flink-nats}
     driver: bridge
+  flink-kafka-net:
+    name: ${T06_NETWORK_NAME:-kafkanuts-flink-kafka}
+    driver: bridge
 
 volumes:
+  flink-kafka-checkpoints:
+    name: ${T06_CHECKPOINT_VOLUME_NAME:-kafkanuts-flink-kafka-checkpoints}
   maven-cache:
     name: ${T02_MAVEN_CACHE_VOLUME:-kafkanuts-maven-cache}

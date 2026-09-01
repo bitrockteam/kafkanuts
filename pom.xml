@@ -21,6 +21,7 @@
     <module>modules/event-contracts</module>
     <module>modules/flink-nats-spike</module>
     <module>modules/kafka-baseline</module>
+    <module>modules/flink-kafka</module>
   </modules>
   <properties>
     <java.version>21</java.version>

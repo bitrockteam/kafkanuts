@@ -79,6 +79,21 @@ T05 introduce un singolo profilo Kafka con tre servizi runtime e un init usa-e-g
 
 Il delta è un limite configurato, non una misura di consumo reale: il gate T05 registra correttezza funzionale, non sizing produttivo. Su una macchina della classe “profili ridotti” il profilo Kafka va eseguito senza gli altri data plane; il limite massimo configurato dei quattro servizi è 2,75 GiB, oltre a page cache e container transitori. `kafka-init` deve essere terminato e rimosso dal cleanup prima che il report dichiari PASS. Ogni limite ha il proprio default configurabile: `kafka` usa `T05_KAFKA_CPUS`/`T05_KAFKA_MEMORY`, `schema-registry` usa `T05_REGISTRY_CPUS`/`T05_REGISTRY_MEMORY`, `ksqldb` usa `T05_KSQL_CPUS`/`T05_KSQL_MEMORY` e `kafka-init` usa `T05_KAFKA_INIT_CPUS`/`T05_KAFKA_INIT_MEMORY`.
 
+## T06 — Cluster Flink Kafka
+
+T06 aggiunge un cluster Flink Kafka separato, un init per i permessi del volume checkpoint, un submitter e un gate effimero. I limiti sono configurabili tramite le rispettive variabili:
+
+| Servizio | CPU | Memoria | Variabili |
+|---|---:|---:|---|
+| `flink-kafka-jobmanager` | 0,5 | 2 GiB | `T06_FLINK_JM_CPUS` / `T06_FLINK_JM_MEMORY` |
+| `flink-kafka-taskmanager` | 0,5 | 2 GiB | `T06_FLINK_TM_CPUS` / `T06_FLINK_TM_MEMORY` |
+| `flink-kafka-checkpoint-init` | 0,25 | 256 MiB | `T06_CHECKPOINT_INIT_CPUS` / `T06_CHECKPOINT_INIT_MEMORY` |
+| `flink-kafka-submit` | 0,5 | 1 GiB | `T06_SUBMIT_CPUS` / `T06_SUBMIT_MEMORY` |
+| `t06-gate` | 0,25 | 256 MiB | `T06_GATE_CPUS` / `T06_GATE_MEMORY` |
+| **Delta T06 configurato** | **2,0 CPU** | **5,5 GiB** | cluster + init/submit/gate |
+
+Il volume `flink-kafka-checkpoints` è nominato e condiviso da JobManager/TaskManager; l'init esegue solo il bootstrap dei permessi. Il gate verifica checkpoint completati tramite REST, restart del TaskManager e deduplica prima/dopo recovery. I valori sono guardrail configurati, non una misura di consumo produttivo; T06 va eseguito nella classe `full raccomandato` quando combinato con il profilo Kafka.
+
 ## T02 — Tooling Compose misurato
 
 T02 introduce soltanto il builder/test Maven containerizzato. I limiti sono configurabili tramite `.env` e hanno questi default:

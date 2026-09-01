@@ -47,7 +47,7 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
   - Topologia Kafka Streams e query ksqlDB versionate.
   - Gate: end-to-end M0, restart broker e schema compatibility.
 
-- [ ] **T06 — Cluster Flink Kafka** (`BLOCKED` da T02,T03,T05)
+- [ ] **T06 — Cluster Flink Kafka** (`HANDOFF_READY`)
   - JobManager/TaskManager dedicati, connector Kafka, checkpoint e output di parità.
   - Gate: processing, checkpoint/restart, duplicate/recovery test.
 
