@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "Payment",
+  "namespace": "com.bitrockteam.kafkanuts.contracts",
+  "fields": [
+    {"name": "paymentId", "type": "string"},
+    {"name": "orderId", "type": "string"},
+    {"name": "status", "type": {"type": "enum", "name": "PaymentStatus", "symbols": ["AUTHORIZED", "DECLINED"]}},
+    {"name": "amountMinor", "type": "long"},
+    {"name": "processorReference", "type": ["null", "string"], "default": null}
+  ]
+}
