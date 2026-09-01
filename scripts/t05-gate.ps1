@@ -6,26 +6,26 @@ $KafkaNetworkName = if ($env:T05_KAFKA_NETWORK_NAME) { $env:T05_KAFKA_NETWORK_NA
 New-Item -ItemType Directory -Force (Split-Path $Report) | Out-Null
 
 function Invoke-Compose {
-  param([Parameter(ValueFromRemainingArguments = $true)][object[]]$Arguments)
+  param([string[]]$Arguments)
   & docker @Compose @Arguments
   if ($LASTEXITCODE -ne 0) { throw "docker compose failed: $($Arguments -join ' ')" }
 }
 function Invoke-ComposeCapture {
-  param([Parameter(ValueFromRemainingArguments = $true)][object[]]$Arguments)
+  param([string[]]$Arguments)
   $output = & docker @Compose @Arguments 2>&1
   if ($LASTEXITCODE -ne 0) { throw "docker compose failed: $($Arguments -join ' ')`n$output" }
   return ($output -join "`n")
 }
 function Invoke-Kafka {
   param([string]$Command)
-  Invoke-Compose run --rm --no-deps --entrypoint /bin/bash kafka-init -ec $Command
+  Invoke-Compose @('run', '--rm', '--no-deps', '--entrypoint', '/bin/bash', 'kafka-init', '-ec', $Command)
 }
 function Invoke-KafkaCapture {
   param([string]$Command)
-  Invoke-ComposeCapture run --rm --no-deps --entrypoint /bin/bash kafka-init -ec $Command
+  Invoke-ComposeCapture @('run', '--rm', '--no-deps', '--entrypoint', '/bin/bash', 'kafka-init', '-ec', $Command)
 }
 function Assert-ComposeClean {
-  $remaining = Invoke-ComposeCapture ps -q
+  $remaining = Invoke-ComposeCapture @('ps', '-q')
   if ($remaining.Trim()) { throw "Compose resources remain: $remaining" }
   & docker network inspect $KafkaNetworkName *> $null
   if ($LASTEXITCODE -eq 0) { throw "$KafkaNetworkName network remains after cleanup" }
@@ -33,13 +33,13 @@ function Assert-ComposeClean {
 
 $clean = $false
 try {
-  Invoke-Compose up -d kafka schema-registry ksqldb
+  Invoke-Compose @('up', '-d', 'kafka', 'schema-registry', 'ksqldb')
   $ready = $false
   for ($i = 0; $i -lt 60; $i++) {
     try { Invoke-Kafka 'curl -fsS http://ksqldb:8088/info >/dev/null'; $ready = $true; break } catch { Start-Sleep -Seconds 2 }
   }
   if (-not $ready) { throw 'ksqlDB did not become ready' }
-  Invoke-Compose run --rm kafka-init
+  Invoke-Compose @('run', '--rm', 'kafka-init')
 
   Invoke-Kafka "printf 'm0-event-1\n' | kafka-console-producer --bootstrap-server kafka:9092 --topic orders"
   $m0 = Invoke-KafkaCapture "kafka-console-consumer --bootstrap-server kafka:9092 --topic orders --from-beginning --max-messages 1 --timeout-ms 10000"
@@ -61,7 +61,7 @@ try {
   if ((Invoke-KafkaCapture "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data '$describeStream' http://ksqldb:8088/ksql") -notmatch 'PAYMENT_EVENTS') { throw 'ksql stream cannot be described' }
   if ((Invoke-KafkaCapture "curl -fsS -X POST -H 'Content-Type: application/vnd.ksql.v1+json' --data '$describeTable' http://ksqldb:8088/ksql") -notmatch 'PAYMENT_STATUS_SUMMARY') { throw 'ksql table cannot be described' }
 
-  Invoke-Compose restart kafka
+  Invoke-Compose @('restart', 'kafka')
   $brokerReady = $false
   for ($i = 0; $i -lt 60; $i++) {
     try { Invoke-Kafka 'kafka-broker-api-versions --bootstrap-server kafka:9092 >/dev/null'; $brokerReady = $true; break } catch { Start-Sleep -Seconds 2 }
@@ -71,13 +71,13 @@ try {
   $afterRestart = Invoke-KafkaCapture "kafka-console-consumer --bootstrap-server kafka:9092 --topic orders --from-beginning --max-messages 2 --timeout-ms 10000"
   if ($afterRestart -notmatch 'm0-event-1' -or $afterRestart -notmatch 'restart-event-1') { throw 'retention/restart verification failed' }
 
-  Invoke-Compose down --volumes --remove-orphans
+  Invoke-Compose @('down', '--volumes', '--remove-orphans')
   Assert-ComposeClean
   $clean = $true
   [ordered]@{task='T05';result='PASS';m0=@{status='PASS';evidence='orders produced and consumed'};schema_compatibility=@{status='PASS';mode='BACKWARD_TRANSITIVE';artifact='modules/event-contracts/src/main/avro/EventEnvelope.avsc plus separate fixture files';evidence='canonical artifact v1 and compatible/incompatible fixture artifacts exercised; incompatible returned HTTP 409'};ksqldb=@{status='PASS';artifact='modules/kafka-baseline/src/main/resources/ksqldb/payment-summary.sql';evidence='versioned production SQL applied and stream/table described'};restart=@{status='PASS';evidence='broker ready after restart; retained m0 and accepted new event'};cleanup=@{status='PASS';network=$KafkaNetworkName;evidence='compose ps empty and effective network absent after verified down'}} | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $Report
   Get-Content $Report
 } finally {
   if (-not $clean) {
-    try { Invoke-Compose down --volumes --remove-orphans } catch { Write-Error $_ }
+    try { Invoke-Compose @('down', '--volumes', '--remove-orphans') } catch { Write-Error $_ }
   }
 }
