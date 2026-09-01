@@ -37,7 +37,7 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
 
 ## Wave 2 — Applicazioni e Kafka baseline
 
-- [ ] **T04 — Tre simulatori e adapter transport** (`BLOCKED` da T01,T03,T10)
+- [x] **T04 — Tre simulatori e adapter transport** (`DONE`)
   - Tre immagini/container Spring Boot distinti.
   - Porte applicative `kafka`, `nats`, `dual`, idempotenza e telemetry context.
   - Gate: unit test dominio/adapter e smoke senza data plane reale.
