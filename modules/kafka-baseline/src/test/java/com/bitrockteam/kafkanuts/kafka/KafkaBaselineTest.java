@@ -9,7 +9,11 @@ import io.confluent.kafka.schemaregistry.client.MockSchemaRegistryClient;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.Properties;
+import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.streams.TestInputTopic;
+import org.apache.kafka.streams.TestOutputTopic;
 import org.apache.kafka.streams.Topology;
+import org.apache.kafka.streams.TopologyTestDriver;
 import org.junit.jupiter.api.Test;
 
 class KafkaBaselineTest {
@@ -26,11 +30,24 @@ class KafkaBaselineTest {
   }
 
   @Test
-  void buildsVersionedPaymentStreamsTopologyWithoutStartingDataPlane() {
+  void countsPaymentsWithTopologyTestDriver() {
     Properties properties = new Properties();
+    properties.put("bootstrap.servers", "dummy:9092");
     Topology topology = PaymentStreamsTopology.build(properties);
     assertEquals("kafkanuts-payment-streams-v1", properties.getProperty("application.id"));
     assertTrue(topology.describe().toString().contains("payment-counts"));
+    try (TopologyTestDriver driver = new TopologyTestDriver(topology, properties)) {
+      TestInputTopic<String, String> input =
+          driver.createInputTopic(
+              "payments", Serdes.String().serializer(), Serdes.String().serializer());
+      TestOutputTopic<String, Long> output =
+          driver.createOutputTopic(
+              "payment-counts", Serdes.String().deserializer(), Serdes.Long().deserializer());
+      input.pipeInput("payment-1", "AUTHORIZED");
+      input.pipeInput("payment-1", "AUTHORIZED");
+      assertEquals(1L, output.readKeyValue().value);
+      assertEquals(2L, output.readKeyValue().value);
+    }
   }
 
   @Test

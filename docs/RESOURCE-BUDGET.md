@@ -65,6 +65,20 @@ Questi valori non sono prescrizioni finali: T02 deve verificarli con startup, id
 
 Una PR che introduce o modifica container fallisce la review se non specifica limiti, healthcheck e delta del budget. Prima della release, il profilo completo deve girare per almeno 30 minuti sulla classe `full minimo` con carico baseline senza OOM o restart imprevisti. La stessa prova sulla classe `full raccomandato` deve lasciare margine sufficiente per editor, browser e strumenti di osservazione.
 
+## T05 — Delta Kafka baseline
+
+T05 introduce un singolo profilo Kafka con tre servizi runtime e un init usa-e-getta. I limiti Compose sono il budget dichiarato e sono configurabili via `.env`:
+
+| Servizio | Limite CPU | Limite memoria | Delta T05 |
+|---|---:|---:|---|
+| `kafka` | 1,0 | 1 GiB | +1 broker KRaft, heap 256-512 MiB |
+| `schema-registry` | 0,5 | 512 MiB | +Registry Confluent |
+| `ksqldb` | 0,5 | 1 GiB | +server ksqlDB, heap gestito dall'immagine |
+| `kafka-init` | nessun limite esplicito | nessun limite esplicito | container breve per topic/gate |
+| **Delta dichiarato** | **2,0 CPU** | **2,5 GiB max** | profilo `kafka` isolato |
+
+Il delta è un limite configurato, non una misura di consumo reale: il gate T05 registra correttezza funzionale, non sizing produttivo. Su una macchina della classe “profili ridotti” il profilo Kafka va eseguito senza gli altri data plane; il limite massimo configurato dei tre runtime è 2,5 GiB, oltre a page cache e container transitori. `kafka-init` deve essere terminato e rimosso dal cleanup prima che il report dichiari PASS.
+
 ## T02 — Tooling Compose misurato
 
 T02 introduce soltanto il builder/test Maven containerizzato. I limiti sono configurabili tramite `.env` e hanno questi default:

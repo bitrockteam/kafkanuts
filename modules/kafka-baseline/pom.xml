@@ -7,6 +7,7 @@
     <dependency><groupId>com.bitrockteam.kafkanuts</groupId><artifactId>transport-core</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>org.apache.kafka</groupId><artifactId>kafka-streams</artifactId><version>3.9.0</version></dependency>
     <dependency><groupId>io.confluent</groupId><artifactId>kafka-avro-serializer</artifactId><version>7.8.0</version></dependency>
+    <dependency><groupId>org.apache.kafka</groupId><artifactId>kafka-streams-test-utils</artifactId><version>3.9.0</version><scope>test</scope></dependency>
     <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
     <dependency><groupId>io.confluent</groupId><artifactId>kafka-schema-registry-client</artifactId><version>7.8.0</version></dependency>
   </dependencies>
