@@ -38,3 +38,6 @@ gitleaks-report.*
 *.p12
 *.jks
 secrets/
+
+# Maven local timing output
+.mvn/timing.properties

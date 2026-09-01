@@ -64,3 +64,14 @@ Questi valori non sono prescrizioni finali: T02 deve verificarli con startup, id
 ## Gate
 
 Una PR che introduce o modifica container fallisce la review se non specifica limiti, healthcheck e delta del budget. Prima della release, il profilo completo deve girare per almeno 30 minuti sulla classe `full minimo` con carico baseline senza OOM o restart imprevisti. La stessa prova sulla classe `full raccomandato` deve lasciare margine sufficiente per editor, browser e strumenti di osservazione.
+
+## T02 — Tooling Compose misurato
+
+T02 introduce soltanto il builder/test Maven containerizzato. I limiti sono configurabili tramite `.env` e hanno questi default:
+
+| Servizio | Limite CPU | Limite memoria | Osservazione reale |
+|---|---:|---:|---|
+| `builder` | 1,0 | 1 GiB | 98,80% CPU; 136,2 MiB / 1 GiB (13,30%) |
+| `test` | 1,0 | 1 GiB | limite configurato; non misurato separatamente |
+
+La misura del builder è una singola osservazione durante uno smoke run e non costituisce sizing produttivo. Il volume Maven nominato è sviluppo locale e può essere rimosso con il comando `reset`; i task successivi devono aggiungere misure proprie prima di dichiarare completato il relativo budget.
