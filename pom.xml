@@ -17,6 +17,7 @@
     <module>modules/order-simulator</module>
     <module>modules/payment-simulator</module>
     <module>modules/fulfillment-simulator</module>
+    <module>modules/event-contracts</module>
   </modules>
   <properties>
     <java.version>21</java.version>
@@ -32,6 +33,7 @@
     <spotbugs-maven.version>4.9.7.0</spotbugs-maven.version>
     <spotless-maven.version>3.10.1</spotless-maven.version>
     <google-java-format.version>1.36.1</google-java-format.version>
+    <avro.version>1.12.0</avro.version>
   </properties>
   <dependencyManagement>
     <dependencies>
@@ -69,7 +71,7 @@
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId><artifactId>maven-checkstyle-plugin</artifactId>
-        <configuration><configLocation>config/checkstyle.xml</configLocation><includeTestSourceDirectory>true</includeTestSourceDirectory><failsOnError>true</failsOnError><failOnViolation>true</failOnViolation></configuration>
+        <configuration><configLocation>config/checkstyle.xml</configLocation><includeTestSourceDirectory>true</includeTestSourceDirectory><excludeGeneratedSources>true</excludeGeneratedSources><failsOnError>true</failsOnError><failOnViolation>true</failOnViolation></configuration>
         <executions><execution><phase>verify</phase><goals><goal>check</goal></goals></execution></executions>
       </plugin>
       <plugin>

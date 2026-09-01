@@ -24,7 +24,7 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
   - Implementare comandi portabili `doctor`, `config`, `up`, `down`, `status`, `reset` con PowerShell/POSIX solo se necessari.
   - Gate: `docker compose config` e smoke su runner/host; aggiornare budget con misure reali.
 
-- [ ] **T03 — Contratti Avro canonici** (`BLOCKED` da T01)
+- [ ] **T03 — Contratti Avro canonici** (`HANDOFF_READY`)
   - Modulo `event-contracts`, envelope e schema Order/Payment/Fulfillment.
   - Generazione Java, fingerprint, compatibility policy e fixture deterministiche.
   - Gate: unit/contract test positivi e schema incompatibile rifiutato.
