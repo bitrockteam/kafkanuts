@@ -1,0 +1,62 @@
+{
+  "task": "T19",
+  "title": "Persistenza su percorso host e brief di deployment",
+  "result": "PASS",
+  "timestamp_utc": "2026-09-02T11:20:00Z",
+  "adr": ["0006-solo-nats-jetstream"],
+  "metodo": "Modifica dei due servizi con stato da volume Docker con nome a bind mount su percorso dell'host, verificata sullo stack vivo con un ciclo completo di rimozione dei volumi e ripartenza. Il vincolo governante era che lo stack continuasse ad avviarsi in locale con docker compose up -d --wait, e la verifica esiste per decidere questo con una prova invece che con un'opinione.",
+  "checks": {
+    "compose_config": {
+      "status": "PASS",
+      "evidence": "docker compose config --quiet esce senza errori."
+    },
+    "build_e_qualita": {
+      "status": "PASS",
+      "evidence": "docker compose --profile test run --rm --no-deps --build test: BUILD SUCCESS su otto moduli, Spotless, Checkstyle e SpotBugs soglia High tutti verdi."
+    },
+    "avvio_da_data_inesistente": {
+      "status": "PASS",
+      "evidence": "Con ./data assente, docker compose up -d --wait porta gli otto servizi allo stato healthy e crea data/nats/jetstream e data/registry-db/pgdata sul filesystem dell'host."
+    },
+    "dati_visibili_sull_host": {
+      "status": "PASS",
+      "evidence": "du -sh: data/nats 3,5 MiB, data/registry-db 48 MiB, di proprieta' dell'utente sull'host, ispezionabili senza entrare in un container."
+    },
+    "sopravvivenza_a_down_v": {
+      "status": "PASS",
+      "evidence": "Stato prima: KAFKANUTS_EVENTS first_seq 1 last_seq 8105, KAFKANUTS_DLQ 280 messaggi, subject kafkanuts.events-value registrato. Dopo docker compose down -v le due directory sono ancora sull'host. Alla ripartenza: KAFKANUTS_EVENTS first_seq 1 last_seq 8123, la sequence prosegue invece di ripartire, il subject e' ancora registrato e il livello di compatibilita' e' ancora BACKWARD. Con i volumi con nome questa verifica falliva per costruzione."
+    },
+    "pgdata_in_sottodirectory": {
+      "status": "PASS",
+      "evidence": "PGDATA=/var/lib/postgresql/data/pgdata: Postgres crea e possiede la sottodirectory invece di pretendere owner e permessi propri sulla radice montata dall'host. Nessun fallimento di permessi su Docker Desktop per Windows."
+    },
+    "cache_maven_resta_volume": {
+      "status": "PASS",
+      "evidence": "maven-cache resta un volume gestito da Docker di proposito: e' una cache di build, non un dato, e tenerla fuori da ./data evita che un rm -rf data/ porti via anche quella."
+    },
+    "suite_funzionale": {
+      "status": "PASS",
+      "evidence": "docker compose --profile suite run --rm feature-suite: JetStreamFeatureTest 7 test, AvroContractTest 4, TransportCoreTest 7. 0 failure, 0 error, 0 skipped."
+    },
+    "brief_di_deployment": {
+      "status": "PASS",
+      "evidence": "docs/DEPLOYMENT.md: inventario degli otto servizi con immagini pinnate, porte, variabili e risorse; requisito di persistenza non negoziabile con la nota su fsync e object store; mappa per AWS, GCP e Azure con l'avvertenza sui servizi serverless; otto precondizioni di sicurezza scritte come precondizioni; backup e ripristino; limiti di scaling; cosa non portare in un ambiente condiviso."
+    },
+    "nessun_dato_tracciato_da_git": {
+      "status": "PASS",
+      "evidence": "git diff --cached --name-only non contiene nulla sotto data/ ne' sotto target/. La directory data/ era gia' in .gitignore."
+    },
+    "nessun_segreto": {
+      "status": "PASS",
+      "evidence": "gitleaks v8.21.2 su 61 commit: no leaks found."
+    }
+  },
+  "conseguenza_dichiarata": {
+    "down_v_non_cancella_piu_i_dati": "docker compose down -v non rimuove piu' lo store JetStream ne' il database del registry. E' una proprieta' voluta, ma cambia la procedura di pulizia: per ripartire davvero da zero occorre rimuovere ./data a mano. Il runbook lo dichiara."
+  },
+  "not_exercised": {
+    "bind_mount_su_altre_piattaforme": "NOT_EXERCISED. La persistenza su percorso host e' provata solo su Docker Desktop per Windows. Su macOS e su Linux nativo il comportamento dei bind mount e le prestazioni sono diversi e non sono stati verificati.",
+    "backup_e_ripristino_come_procedura": "NOT_EXERCISED. E' verificata la sopravvivenza dei dati alla rimozione dei volumi, non un ciclo completo di backup e restore da un archivio.",
+    "tutto_il_contenuto_di_deployment_md": "NOT_EXERCISED. Il brief e' documentazione: nessuna delle mappature cloud, delle precondizioni di sicurezza o delle procedure di backup che descrive e' stata eseguita. Il documento le elenca come lavoro da fare, non come lavoro fatto."
+  }
+}

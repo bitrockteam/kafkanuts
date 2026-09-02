@@ -1,0 +1,69 @@
+{
+  "task": "T20",
+  "title": "Console del flusso live e catena causale verificata",
+  "result": "PASS",
+  "timestamp_utc": "2026-09-02T11:20:00Z",
+  "adr": ["0006-solo-nats-jetstream"],
+  "metodo": "Un servizio nuovo, console, che osserva JetStream e ripubblica il flusso in SSE, e una sezione nuova in cima alla dashboard esistente. Nessuna schermata separata: il flusso applicativo e l'output di JetStream restano nella stessa pagina. Tutte le verifiche sono eseguite contro lo stack vivo.",
+  "checks": {
+    "osservatore_passivo": {
+      "status": "PASS",
+      "evidence": "La console si lega a consumer effimeri con ack_policy none su kafkanuts.events.> e kafkanuts.dlq.>, mai ai durable payment-worker e fulfillment-worker. Non sottrae messaggi ai simulatori e non lascia consumer sul server quando il container si ferma. Verificato: i contatori dei tre simulatori continuano a crescere con la console attiva."
+    },
+    "flusso_sse_attraverso_il_proxy": {
+      "status": "PASS",
+      "evidence": "GET http://localhost:8090/api/events restituisce righe SSE con seq reali dello stream, eventType, aggregateId, eventId, correlationId, causationId e producer. Esempio osservato: seq 3771 FulfillmentCompleted, seq 3772 PaymentAuthorized, seq 3773 OrderCreated."
+    },
+    "eventi_dlq_nel_flusso": {
+      "status": "PASS",
+      "evidence": "In una finestra di 25 secondi il flusso conteneva 11 righe con stream DLQ, decodificate con lo stesso codec Avro. La dead letter e' visibile in pagina come stato terminale dell'ordine, non come riga separata."
+    },
+    "catena_causale_verificata_dal_vivo": {
+      "status": "PASS",
+      "evidence": "La colonna Catena causale verifica in pagina la stessa proprieta' asserita dal test: stesso correlationId per tutti gli eventi dell'aggregato e causationId che punta all'eventId precedente. Se la catena si rompe la cella diventa rossa."
+    },
+    "catena_causale_verificata_dal_test": {
+      "status": "PASS",
+      "evidence": "JetStreamFeatureTest.lifecycleEventsAreCausallyChained drena lo stream, ricostruisce un ciclo completo e asserisce tipi, aggregateId comune, correlationId comune, causationId concatenati, eventId distinti e i tre producer attesi. Catena stampata: order-76f74b17, correlationId 76f74b17, OrderCreated -> PaymentAuthorized causata da OrderCreated -> FulfillmentCompleted causata da PaymentAuthorized."
+    },
+    "idratazione_a_freddo": {
+      "status": "PASS",
+      "evidence": "DeliverPolicy ByStartTime a tre minuti e ring buffer di 400 eventi: una pagina aperta a stack gia' avviato non parte vuota. Health della console dopo pochi minuti: observed 432, buffered 400."
+    },
+    "console_ferma_sembra_rotta": {
+      "status": "PASS",
+      "evidence": "Se la connessione SSE cade la barra diventa rossa e dichiara flusso interrotto; se la connessione regge ma non arrivano eventi per venti secondi la barra dichiara da quanti secondi il flusso e' fermo. Una console stantia che sembra viva e' il difetto piu' grave di questo genere di strumenti."
+    },
+    "otto_servizi_healthy": {
+      "status": "PASS",
+      "evidence": "docker compose up -d --wait: nats, registry-db, registry, i tre simulatori, console e dashboard tutti healthy. Verificato con docker compose ps."
+    },
+    "build_e_qualita": {
+      "status": "PASS",
+      "evidence": "docker compose --profile test run --rm --no-deps --build test: BUILD SUCCESS. Sul modulo console SpotBugs riporta BugInstance size 0, Spotless e Checkstyle verdi."
+    },
+    "script_della_pagina_valido": {
+      "status": "PASS",
+      "evidence": "Lo script inline della dashboard, 343 righe dopo l'aggiunta, passa node --check. La pagina e' servita con HTTP 200."
+    },
+    "onesta_del_colore": {
+      "status": "PASS",
+      "evidence": "Le pillole della tabella di corrispondenza erano verde, giallo e grigio: il verde su equivalente si leggeva come un PASS misurato contro Kafka, che non esiste. Sono state rese acromatiche, distinte per riempimento. Il colore resta solo nella sezione del flusso, dove i dati sono misurati sul sistema vivo."
+    },
+    "nessun_segreto": {
+      "status": "PASS",
+      "evidence": "gitleaks v8.21.2 su 61 commit: no leaks found. Il servizio console non introduce credenziali ne' variabili sensibili."
+    }
+  },
+  "difetto_trovato_e_corretto": {
+    "nginx_con_configurazione_stale": "Alla prima prova /api/ rispondeva 404 con il corpo generato da nginx, mentre nginx -T mostrava la location corretta: il container dashboard era stato creato prima della modifica di nginx.conf e il processo aveva ancora in memoria la configurazione vecchia. Non e' un difetto del codice consegnato, ma va saputo: nginx legge la configurazione all'avvio, quindi dopo una modifica di dashboard/nginx.conf serve docker compose restart dashboard."
+  },
+  "not_exercised": {
+    "render_su_browser_reali": "NOT_EXERCISED. La pagina e' verificata servendo l'HTML, controllando la sintassi dello script e leggendo il flusso SSE dal proxy, non aprendola in una matrice di browser. Nessuna affermazione sul rendering.",
+    "console_sotto_carico": "NOT_EXERCISED. Il ritmo osservato e' di circa 1,5 eventi al secondo, la cadenza dei simulatori. Il comportamento della pagina e del buffer a ritmi superiori non e' stato provato.",
+    "piu_client_simultanei": "NOT_EXERCISED. Le verifiche sono state fatte con uno o due lettori SSE. Il comportamento con molte schede aperte non e' stato misurato.",
+    "autenticazione_sull_endpoint_sse": "NOT_EXERCISED. /api/events e' leggibile da chiunque raggiunga la porta 8090. Assetto di laboratorio, dichiarato nei limiti del README e in docs/DEPLOYMENT.md.",
+    "advisory_di_nak": "NOT_EXERCISED, e non e' rimandabile: JetStream non emette advisory per il nak. Emette MAX_DELIVERIES e, con SampleFrequency attivo, le metriche di ack. La console mostra quindi lo stato osservato dell'ordine, non la sequenza dei singoli tentativi di consegna, che non e' ricostruibile dal server con la configurazione attuale.",
+    "ricchezza_del_dominio": "NOT_EXERCISED. Il payload e' {\"orderId\":\"<uuid>\"} identico ai tre stadi: nessuno stadio aggiunge informazione. Gli schemi Order.avsc, Payment.avsc e Fulfillment.avsc esistono dal T03 e non sono usati da alcun codice. La catena e' provata a livello di envelope, non di contenuto di dominio."
+  }
+}

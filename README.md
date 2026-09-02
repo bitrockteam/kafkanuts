@@ -4,7 +4,7 @@ Laboratorio riproducibile per progettare, osservare e collaudare la migrazione p
 
 Il progetto mette a confronto i due ecosistemi su un flusso applicativo realistico, mantenendo contratti Avro, schema governance, stream processing, osservabilità e rollback verificabile. Non cerca una sostituzione meccanica topic-per-subject: rende esplicite le differenze di semantica, operatività e failure handling.
 
-> **Stato:** lo stack solo NATS JetStream è in piedi e le feature dichiarate sono esercitate da test funzionali contro il sistema reale. Resta aperto T15: runbook e release `v0.1.0`.
+> **Stato:** `v0.2.0`. Lo stack solo NATS JetStream è in piedi, le feature dichiarate sono esercitate da test funzionali contro il sistema reale, i dati persistono su un percorso dell'host e la dashboard mostra il flusso degli eventi dal vivo.
 
 ## Come si prova
 
@@ -12,7 +12,9 @@ Il progetto mette a confronto i due ecosistemi su un flusso applicativo realisti
 docker compose up -d --wait
 ```
 
-Poi apri <http://localhost:8090>. Il percorso completo, con troubleshooting e cleanup, è nel [runbook](docs/RUNBOOK.md).
+Poi apri <http://localhost:8090>. In cima alla pagina scorre il **flusso live**: una riga per ordine, che cambia stato sul posto mentre attraversa pagamento ed evasione, con il numero di sequence dello stream e la verifica della catena causale. Sotto, la topologia JetStream letta dal monitoring e la tabella di corrispondenza con Confluent.
+
+Il percorso completo, con troubleshooting e cleanup, è nel [runbook](docs/RUNBOOK.md).
 
 ## Obiettivi
 
@@ -36,6 +38,7 @@ Un solo data plane. Nessun secondo trasporto, nessuna migrazione eseguita.
 order-simulator ──┐
 payment-simulator ├──> NATS + JetStream (persistente) ──> dashboard di corrispondenza
 fulfillment-sim. ──┘            │
+                                ├──> console (consumer effimeri) ──> SSE ──> dashboard
                                 └──> Apicurio Registry (ccompat) + PostgreSQL
 ```
 
@@ -45,7 +48,10 @@ fulfillment-sim. ──┘            │
 | Apicurio Registry | registry degli schemi Avro, esposto via API `ccompat` |
 | PostgreSQL | storage di Apicurio |
 | tre simulatori Spring Boot | ciclo di vita ordine, pagamento e fulfillment |
-| dashboard | feature JetStream in uso e corrispondenza dichiarata con Confluent Platform e Kafka |
+| console | osserva il flusso con consumer effimeri e lo ripubblica in SSE, senza toccare i durable |
+| dashboard | flusso live, feature JetStream in uso e corrispondenza dichiarata con Confluent Platform e Kafka |
+
+I dati persistono **su un percorso del filesystem dell'host**, non in un volume gestito da Docker: `${KAFKANUTS_DATA_DIR:-./data}/nats` per lo store JetStream e `${KAFKANUTS_DATA_DIR:-./data}/registry-db` per PostgreSQL. Restano visibili, salvabili e spostabili, e sopravvivono anche a `docker compose down -v`.
 
 Kafka, Confluent Schema Registry, ksqlDB e i cluster Flink sono stati **rimossi fisicamente** dal repository con l'[ADR 0006](docs/adr/0006-solo-nats-jetstream.md). Lo stato precedente resta recuperabile dal tag `archive/kafka-flink-baseline-v0`.
 
@@ -56,10 +62,14 @@ La demo usa tre simulatori Java 21/Spring Boot, ciascuno in un container distint
 | Servizio | Responsabilità | Eventi principali |
 |---|---|---|
 | `order-simulator` | genera ordini deterministici e burst configurabili | `OrderCreated` |
-| `payment-simulator` | elabora l'ordine e simula autorizzazione o rifiuto | `PaymentAuthorized`, `PaymentRejected` |
-| `fulfillment-simulator` | avvia e completa l'evasione degli ordini pagati | `FulfillmentStarted`, `FulfillmentCompleted` |
+| `payment-simulator` | autorizza l'ordine; una quota deterministica fallisce sempre | `PaymentAuthorized` |
+| `fulfillment-simulator` | completa l'evasione degli ordini pagati | `FulfillmentCompleted` |
 
-Ogni servizio usa il trasporto `nats`, selezionabile tramite configurazione senza ricostruire l'immagine. L'envelope evento conserva:
+Gli eventi sono **concatenati**: stesso `aggregateId`, stesso `correlationId`, e il `causationId` di ogni evento punta all'evento che lo ha causato. La proprietà è asserita da un test della suite funzionale e verificata dal vivo nella colonna *Catena causale* della dashboard.
+
+`PaymentRejected` e `FulfillmentStarted` **non esistono**: oggi il rifiuto di business non è distinto dal fallimento tecnico, e l'evasione ha un solo evento terminale. È un limite del dominio simulato, non un difetto del trasporto.
+
+L'envelope evento conserva:
 
 - `eventId` stabile tra i trasporti;
 - tipo e versione dell'evento;
@@ -78,8 +88,9 @@ Ogni servizio usa il trasporto `nats`, selezionabile tramite configurazione senz
 | `nats` | `nats:2.11.8-alpine` | JetStream con store persistente, monitoring su `8222` |
 | `registry` | `apicurio/apicurio-registry:3.0.6` | storage SQL, API `ccompat` su `/apis/ccompat/v7` |
 | `registry-db` | `postgres:16.4-alpine` | credenziali di laboratorio, non riusabili fuori dalla demo |
-| `order-simulator`, `payment-simulator`, `fulfillment-simulator` | build locale | trasporto `nats` |
-| `dashboard` | `nginx:1.27-alpine` | pagina statica su `8090`, proxy di sola lettura verso il monitoring NATS |
+| `order-simulator`, `payment-simulator`, `fulfillment-simulator` | build locale | un ordine ogni due secondi, ack esplicito, DLQ |
+| `console` | build locale | osservatore passivo di JetStream, decodifica Avro e serve il flusso in SSE |
+| `dashboard` | `nginx:1.27-alpine` | pagina su `8090`, proxy di sola lettura verso il monitoring NATS e verso `console` |
 
 Tutte le immagini sono pinnate a versione esplicita; ogni servizio dichiara healthcheck e limiti di CPU e memoria.
 
@@ -114,7 +125,7 @@ Il budget risorse dello stack completo è di circa tre CPU: NATS, PostgreSQL, Ap
 
 ## Requisiti della macchina target
 
-Con un solo data plane il fabbisogno è modesto. Lo stack completo dichiara circa **3,25 CPU** e resta sotto i **3 GiB** di memoria assegnata:
+Con un solo data plane il fabbisogno è modesto. Lo stack completo dichiara circa **3,75 CPU** e resta sotto i **3,5 GiB** di memoria assegnata:
 
 | Servizio | CPU | Memoria |
 |---|---:|---:|
@@ -122,7 +133,10 @@ Con un solo data plane il fabbisogno è modesto. Lo stack completo dichiara circ
 | `registry-db` | 0,5 | 512 MiB |
 | `registry` | 1,0 | 1 GiB |
 | tre simulatori | 0,5 ciascuno | 512 MiB ciascuno |
+| `console` | 0,5 | 512 MiB |
 | `dashboard` | 0,25 | 128 MiB |
+
+A questi va aggiunto il disco occupato da `./data`: lo store JetStream e il database del registry crescono sull'host, con `max_age` di ventiquattro ore sugli stream.
 
 Una macchina con 8 CPU logiche, 16 GiB di RAM host e 40 GiB di disco libero esegue lo stack, la build in container e la suite funzionale senza stringere. I profili `test` e `suite` aggiungono un container Maven da 1 CPU e 1 GiB, non concorrente con lo stack.
 
@@ -223,6 +237,7 @@ I task da T05 a T14 sono chiusi, superati o non esercitati per effetto dell'ADR 
 - [Budget risorse](docs/RESOURCE-BUDGET.md)
 - [Perimetro di verifica v0.1.0](docs/QA-SCOPE.md)
 - [ADR 0006, solo NATS JetStream](docs/adr/0006-solo-nats-jetstream.md)
+- [Brief di deployment](docs/DEPLOYMENT.md)
 - [Handoff esecutivo](docs/EXECUTION-HANDOFF.md)
 - [Contratto del watcher Herdr, storico](docs/WATCHER-CONTRACT.md)
 - [Regole per agenti e contributori](AGENTS.md)
@@ -268,10 +283,13 @@ I contatori esposti dai simulatori e dalla dashboard sono **conteggi funzionali,
 |---|---|---|
 | TLS e autenticazione su NATS | `NOT_EXERCISED` | assetto di laboratorio |
 | autenticazione su Apicurio e sulla dashboard | `NOT_EXERCISED` | assetto di laboratorio |
-| analisi statica, scanner immagini, SBOM, provenance, firma | `NOT_EXERCISED` | rimandati a `v0.2.0`; la release dichiara che l'analisi automatica non è stata eseguita, non l'assenza di vulnerabilità |
-| osservabilità con Prometheus, Grafana, Loki, OpenTelemetry | `NOT_EXERCISED` | rimandata a `v0.2.0`; in v0.1.0 la dashboard legge direttamente il monitoring NATS |
-| render della dashboard su una matrice di browser | `NOT_EXERCISED` | verificato eseguendo lo script della pagina contro lo stack vivo |
-| Kubernetes, servizi cloud gestiti, multi-region, disaster recovery geografico | fuori perimetro | non previsti in v0.1.0 |
+| autenticazione e controllo d'accesso su `console` e sul suo endpoint SSE | `NOT_EXERCISED` | assetto di laboratorio; `/api/events` è leggibile da chiunque raggiunga la porta `8090` |
+| analisi statica, scanner immagini, SBOM, provenance, firma | `NOT_EXERCISED` | rimandati a `v0.3.0`; la release dichiara che l'analisi automatica non è stata eseguita, non l'assenza di vulnerabilità |
+| osservabilità con Prometheus, Grafana, Loki, OpenTelemetry | `NOT_EXERCISED` | rimandata a `v0.3.0`; la dashboard legge direttamente il monitoring NATS e il flusso dalla console |
+| render della dashboard su una matrice di browser | `NOT_EXERCISED` | verificato eseguendo lo script della pagina contro lo stack vivo, non aprendola in browser diversi |
+| backup e ripristino di `./data` come procedura provata | `NOT_EXERCISED` | è verificata la sopravvivenza dei dati a `docker compose down -v`, non un ciclo completo di backup e restore |
+| bind mount su filesystem diversi da Docker Desktop per Windows | `NOT_EXERCISED` | la persistenza su percorso host è provata solo su questa piattaforma |
+| deployment su cloud, Kubernetes, servizi gestiti, multi-region, disaster recovery geografico | `NOT_EXERCISED` | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) descrive cosa servirebbe; non implementa nulla di ciò che prescrive |
 
 Le credenziali PostgreSQL nel Compose sono valori di laboratorio con default espliciti, dichiarati come tali e non riusabili fuori dalla demo.
 
