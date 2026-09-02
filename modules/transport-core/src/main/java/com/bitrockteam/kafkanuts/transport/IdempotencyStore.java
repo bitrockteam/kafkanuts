@@ -12,6 +12,16 @@ public final class IdempotencyStore {
     return processed.add(eventId);
   }
 
+  /**
+   * Reports whether a logical event has already been processed, without recording it.
+   *
+   * @param eventId logical event identifier
+   * @return true when the event was already processed
+   */
+  public boolean seen(String eventId) {
+    return processed.contains(eventId);
+  }
+
   public int size() {
     return processed.size();
   }

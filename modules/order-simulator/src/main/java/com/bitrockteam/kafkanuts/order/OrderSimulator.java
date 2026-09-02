@@ -1,12 +1,7 @@
 package com.bitrockteam.kafkanuts.order;
 
-import com.bitrockteam.kafkanuts.transport.EventEnvelope;
-import com.bitrockteam.kafkanuts.transport.IdempotencyStore;
-import com.bitrockteam.kafkanuts.transport.InMemoryTransportAdapter;
-import com.bitrockteam.kafkanuts.transport.TelemetryContext;
-import com.bitrockteam.kafkanuts.transport.TransportMode;
-import com.bitrockteam.kafkanuts.transport.TransportRouter;
-import java.time.Instant;
+import com.bitrockteam.kafkanuts.transport.LifecycleRole;
+import com.bitrockteam.kafkanuts.transport.SimulatorNode;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,53 +11,53 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Spring Boot order producer with configurable application transport routing. */
+/** Spring Boot simulator playing the {@code ORDER_PRODUCER} role on JetStream. */
 @SpringBootApplication(proxyBeanMethods = false)
 @RestController
 public final class OrderSimulator {
-  /** Singleton application router. */
-  @Autowired private TransportRouter configuredRouter;
+  /** Background lifecycle node. */
+  @Autowired private SimulatorNode node;
 
   private OrderSimulator() {}
 
+  /**
+   * Boots the service.
+   *
+   * @param args command line arguments
+   */
   public static void main(String[] args) {
     SpringApplication.run(OrderSimulator.class, args);
   }
 
-  @Bean
-  public static TransportRouter transportRouter(@Value("${transport.mode:dual}") String mode) {
-    return router(mode);
+  /**
+   * Creates the lifecycle node from the environment.
+   *
+   * @param natsUrl NATS server URL
+   * @param registryUrl ccompat base URL
+   * @return started node
+   */
+  @Bean(destroyMethod = "close")
+  public static SimulatorNode simulatorNode(
+      @Value("${NATS_URL:}") String natsUrl, @Value("${REGISTRY_URL:}") String registryUrl) {
+    return new SimulatorNode(name(), LifecycleRole.ORDER_PRODUCER, natsUrl, registryUrl);
   }
 
+  /**
+   * Reports service health and lifecycle counters.
+   *
+   * @return health attributes
+   */
   @GetMapping("/health")
-  public Map<String, String> health() {
-    return Map.of(
-        "status",
-        "UP",
-        "service",
-        name(),
-        "transportMode",
-        configuredRouter.mode().name().toLowerCase());
+  public Map<String, Object> health() {
+    return node.health();
   }
 
+  /**
+   * Returns the module name.
+   *
+   * @return service name
+   */
   public static String name() {
     return "order-simulator";
-  }
-
-  public static TransportRouter router(String mode) {
-    return new TransportRouter(
-        TransportMode.parse(mode),
-        new InMemoryTransportAdapter("kafka", new IdempotencyStore()),
-        new InMemoryTransportAdapter("nats", new IdempotencyStore()));
-  }
-
-  public static EventEnvelope event(String eventId, String traceId) {
-    return new EventEnvelope(
-        eventId,
-        "OrderCreated",
-        "order-" + eventId,
-        Instant.now(),
-        new TelemetryContext(traceId, eventId),
-        new byte[0]);
   }
 }

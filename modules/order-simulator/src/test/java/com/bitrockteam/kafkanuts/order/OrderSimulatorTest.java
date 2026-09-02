@@ -1,20 +1,27 @@
 package com.bitrockteam.kafkanuts.order;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.bitrockteam.kafkanuts.transport.LifecycleRole;
+import com.bitrockteam.kafkanuts.transport.SimulatorNode;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class OrderSimulatorTest {
   @Test
-  void exposesModuleNameAndAllTransportModes() {
+  void exposesModuleName() {
     assertEquals("order-simulator", OrderSimulator.name());
-    assertEquals(
-        1, OrderSimulator.router("kafka").destinations(OrderSimulator.event("e1", "t1")).size());
-    assertEquals(
-        1, OrderSimulator.router("nats").destinations(OrderSimulator.event("e2", "t2")).size());
-    assertEquals(
-        2, OrderSimulator.router("dual").destinations(OrderSimulator.event("e3", "t3")).size());
-    assertTrue(OrderSimulator.router("nats").publish(OrderSimulator.event("e4", "t4")));
+  }
+
+  @Test
+  void staysInactiveAndSaysSoWithoutADataPlane() {
+    try (SimulatorNode node =
+        new SimulatorNode(OrderSimulator.name(), LifecycleRole.ORDER_PRODUCER, "", "")) {
+      Map<String, Object> health = node.health();
+      assertEquals("UP", health.get("status"));
+      assertEquals("nats", health.get("transport"));
+      assertEquals("inactive", health.get("lifecycle"));
+      assertEquals("data plane not configured", health.get("reason"));
+    }
   }
 }

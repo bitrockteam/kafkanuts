@@ -2,26 +2,26 @@ package com.bitrockteam.kafkanuts.fulfillment;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.bitrockteam.kafkanuts.transport.LifecycleRole;
+import com.bitrockteam.kafkanuts.transport.SimulatorNode;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class FulfillmentSimulatorTest {
   @Test
-  void routesConfiguredApplicationTransports() {
+  void exposesModuleName() {
     assertEquals("fulfillment-simulator", FulfillmentSimulator.name());
-    assertEquals(
-        1,
-        FulfillmentSimulator.router("kafka")
-            .destinations(FulfillmentSimulator.event("e1", "t1"))
-            .size());
-    assertEquals(
-        1,
-        FulfillmentSimulator.router("nats")
-            .destinations(FulfillmentSimulator.event("e2", "t2"))
-            .size());
-    assertEquals(
-        2,
-        FulfillmentSimulator.router("dual")
-            .destinations(FulfillmentSimulator.event("e3", "t3"))
-            .size());
+  }
+
+  @Test
+  void staysInactiveAndSaysSoWithoutADataPlane() {
+    try (SimulatorNode node =
+        new SimulatorNode(FulfillmentSimulator.name(), LifecycleRole.FULFILLMENT_WORKER, "", "")) {
+      Map<String, Object> health = node.health();
+      assertEquals("UP", health.get("status"));
+      assertEquals("nats", health.get("transport"));
+      assertEquals("inactive", health.get("lifecycle"));
+      assertEquals("data plane not configured", health.get("reason"));
+    }
   }
 }

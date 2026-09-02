@@ -4,11 +4,10 @@
   <parent>
     <groupId>com.bitrockteam.kafkanuts</groupId><artifactId>kafkanuts</artifactId><version>0.1.0-SNAPSHOT</version><relativePath>../../pom.xml</relativePath>
   </parent>
-  <artifactId>transport-core</artifactId>
+  <artifactId>feature-suite</artifactId>
+  <description>Functional suite exercising JetStream features against the running stack</description>
   <dependencies>
-    <dependency><groupId>com.bitrockteam.kafkanuts</groupId><artifactId>event-contracts</artifactId><version>${project.version}</version></dependency>
-    <dependency><groupId>io.nats</groupId><artifactId>jnats</artifactId><version>${jnats.version}</version></dependency>
-    <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId></dependency>
+    <dependency><groupId>com.bitrockteam.kafkanuts</groupId><artifactId>transport-core</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
   </dependencies>
 </project>

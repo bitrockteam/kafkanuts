@@ -26,8 +26,10 @@ jobs:
       - name: valida la configurazione Compose
         run: docker compose config --quiet
 
+      # --build e' esplicito: senza, un layer in cache puo' far girare sorgenti vecchi
+      # e produrre un BUILD SUCCESS che non corrisponde al commit in review.
       - name: build e unit test in container
-        run: docker compose --profile test run --rm --no-deps test
+        run: docker compose --profile test run --rm --no-deps --build test
 
   secrets:
     name: ricerca segreti

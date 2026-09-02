@@ -1,0 +1,79 @@
+{
+  "task": "T18",
+  "title": "Ciclo di vita ordine su JetStream, suite funzionale e dashboard di corrispondenza",
+  "result": "PASS",
+  "timestamp_utc": "2026-09-02T08:30:12Z",
+  "adr": [
+    "0005-perimetro-qa-ridotto",
+    "0006-solo-nats-jetstream"
+  ],
+  "checks": {
+    "build_and_unit_tests": {
+      "status": "PASS",
+      "evidence": "docker compose --profile test run --rm --no-deps --build test: BUILD SUCCESS. 17 test unitari su event-contracts, transport-core e i tre simulatori. Spotless, Checkstyle e SpotBugs soglia High tutti verdi."
+    },
+    "stack_health": {
+      "status": "PASS",
+      "evidence": "docker compose up -d --wait: nats, registry-db, registry, order-simulator, payment-simulator, fulfillment-simulator, dashboard tutti healthy. Budget dichiarato circa 3,25 CPU."
+    },
+    "lifecycle_end_to_end": {
+      "status": "PASS",
+      "evidence": "GET /health dei tre simulatori: order published 393; payment published 351, deliveries 688, uniqueEvents 351, deadLettered 41; fulfillment published 351, deliveries 537, duplicateDeliveries 186, uniqueEvents 351. La catena order to payment to fulfillment gira in continuo sui subject kafkanuts.events.*."
+    },
+    "avro_su_apicurio_ccompat": {
+      "status": "PASS",
+      "evidence": "GET /apis/ccompat/v7/subjects risponde [\"kafkanuts.events-value\"]. Round trip encode e decode con risoluzione dello schema writer dal registry verificato dal test avroRoundTripsThroughApicurioCcompat. Wire format Confluent: magic byte 0, id schema big endian a 4 byte, corpo Avro."
+    },
+    "compatibilita_schema_imposta": {
+      "status": "PASS",
+      "evidence": "GET /apis/ccompat/v7/config/kafkanuts.events-value risponde {\"compatibilityLevel\":\"BACKWARD\"}. Il livello e' imposto da AvroEventCodec alla costruzione: Apicurio via ccompat parte da NONE, a differenza di Confluent Schema Registry che parte da BACKWARD. Vedere la nota su questa divergenza piu' sotto."
+    },
+    "deduplica_lato_server": {
+      "status": "PASS",
+      "evidence": "Test serverDeduplicatesRepeatedMessageId: due publish con lo stesso header Nats-Msg-Id restituiscono la stessa sequence e il secondo ack ha isDuplicate true. Finestra di deduplica dello stream 2 minuti."
+    },
+    "redelivery_e_dead_letter": {
+      "status": "PASS",
+      "evidence": "Test exhaustedDeliveriesReachTheDeadLetterStream: un messaggio nak-ato oltre max_deliver produce l'advisory MAX_DELIVERIES, DeadLetterRouter lo ripubblica su kafkanuts.dlq.* e il conteggio dello stream KAFKANUTS_DLQ cresce. Confermato anche dal vivo: payment-simulator riporta deadLettered 41 e /jsz mostra KAFKANUTS_DLQ popolato."
+    },
+    "replay_per_sequence_e_per_tempo": {
+      "status": "PASS",
+      "evidence": "Test replayBySequenceAndByTimeReturnStoredMessages: consumer con DeliverPolicy ByStartSequence e ByStartTime restituiscono entrambi il messaggio memorizzato."
+    },
+    "provisioning_idempotente": {
+      "status": "PASS",
+      "evidence": "Test streamsAreProvisionedIdempotently: una seconda provision sullo stesso server non fallisce e gli stream KAFKANUTS_EVENTS e KAFKANUTS_DLQ restano presenti. Il provisioner tenta addStream e in caso di conflitto passa a updateStream."
+    },
+    "persistenza_al_riavvio": {
+      "status": "PASS",
+      "evidence": "docker compose restart nats: 497 messaggi prima del riavvio, 507 dopo. Nessuna perdita, stream su storage file e volume nominato kafkanuts-nats-data. La crescita e' dovuta ai simulatori che si riconnettono e riprendono a pubblicare."
+    },
+    "suite_funzionale_live": {
+      "status": "PASS",
+      "evidence": "docker compose --profile suite run --rm feature-suite: Tests run 6, Failures 0, Errors 0, Skipped 0 in JetStreamFeatureTest. La suite e' gated da T18_LIVE: senza stack in piedi viene saltata invece di dichiarare un falso PASS."
+    },
+    "dashboard_corrispondenza": {
+      "status": "PASS",
+      "evidence": "Servizio dashboard su nginx 1.27-alpine, porta 8090. GET / e GET /mapping.json rispondono 200; il proxy di sola lettura /nats/ raggiunge varz e jsz del monitoring NATS sulla stessa origine, senza credenziali. Render verificato eseguendo lo script della pagina contro lo stack vivo: 7 card di riepilogo, 2 righe stream, 2 righe consumer, 15 righe di corrispondenza, nessun errore."
+    },
+    "ci_minima": {
+      "status": "PASS",
+      "evidence": "Workflow ci.yml con job verify, che valida compose ed esegue build e test in container, e job secrets con gitleaks. Action pinnate a SHA. Il passo di build ora usa --build in modo esplicito: senza, un layer Docker in cache puo' far girare sorgenti vecchi e produrre un BUILD SUCCESS che non corrisponde al commit in review. La cosa e' successa davvero durante T17 e si e' ripresentata in T18."
+    },
+    "nessun_segreto": {
+      "status": "PASS",
+      "evidence": "Nessuna credenziale nei file aggiunti. La dashboard non usa autenticazione e non inoltra header. Le credenziali PostgreSQL restano valori di laboratorio con default nel compose, come gia' dichiarato in T17."
+    }
+  },
+  "not_exercised": {
+    "corrispondenza_confluent_misurata": "NOT_EXERCISED per costruzione. Le 15 righe della tabella di corrispondenza sono dichiarative e citate, non misurate: Kafka e Confluent Platform non sono presenti nello stack per ADR 0006. La dashboard riporta questa avvertenza in modo esplicito e permanente.",
+    "compattazione_transazioni_stream_processing": "NOT_EXERCISED. Compacted topic, transazioni ed exactly once, Kafka Streams e ksqlDB non hanno controparte dimostrata in questo laboratorio e sono marcati come assenti nella tabella.",
+    "prestazioni_capacita_ha": "NOT_EXERCISED per ADR 0005. Nessuna misura di latenza, throughput, capacita' o alta disponibilita'. I numeri del ciclo di vita sono conteggi funzionali, non benchmark.",
+    "sicurezza_del_data_plane": "NOT_EXERCISED. NATS gira senza TLS e senza autenticazione, Apicurio senza autenticazione, la dashboard senza controllo di accesso. Assetto di laboratorio, non riusabile fuori dalla demo.",
+    "resilienza_oltre_il_riavvio_singolo": "NOT_EXERCISED. Verificato solo il riavvio del singolo nodo NATS. Nessuna prova su cluster, partizioni di rete, perdita di disco o failover.",
+    "dashboard_su_browser_reali": "NOT_EXERCISED. Il render e' stato verificato eseguendo lo script della pagina contro lo stack vivo, non su una matrice di browser."
+  },
+  "note_di_merito": {
+    "divergenza_apicurio_confluent": "Trovata durante la verifica live e non prevista dal piano: interrogato via API ccompat, Apicurio Registry 3.0.6 parte da compatibilityLevel NONE, sia globale sia per subject, e quindi accetta anche uno schema incompatibile. Confluent Schema Registry parte invece da BACKWARD. La correzione e' in codice di produzione, non nel test: AvroEventCodec impone esplicitamente BACKWARD sul subject alla costruzione. Il test asserisce il livello imposto e poi che uno schema incompatibile venga rifiutato. E' un punto rilevante per l'offerta: la compatibilita' dei contratti non e' ereditata per default cambiando registry."
+  }
+}

@@ -19,6 +19,7 @@
     <module>modules/fulfillment-simulator</module>
     <module>modules/transport-core</module>
     <module>modules/event-contracts</module>
+    <module>modules/feature-suite</module>
   </modules>
   <properties>
     <java.version>21</java.version>
@@ -35,6 +36,7 @@
     <spotless-maven.version>3.10.1</spotless-maven.version>
     <google-java-format.version>1.36.1</google-java-format.version>
     <avro.version>1.12.0</avro.version>
+    <jnats.version>2.21.1</jnats.version>
   </properties>
   <dependencyManagement>
     <dependencies>

@@ -48,22 +48,22 @@ Nessuna migrazione viene eseguita. La corrispondenza con Confluent Platform e Ka
 
 ## Wave corrente
 
-- [ ] **T17 — Stack solo NATS JetStream e CI minima** (`IN_PROGRESS`)
+- [x] **T17 — Stack solo NATS JetStream e CI minima** (`DONE`, PR #28, gate `docs/gates/t17-gate.json`)
   - Rimuovere fisicamente Kafka, Confluent Schema Registry, ksqlDB, init topic e i moduli `kafka-baseline` e `flink-nats-spike`.
   - Compose con NATS JetStream persistente, Apicurio Registry e PostgreSQL, i tre simulatori sul trasporto `nats`.
   - Immagini pinnate a versione esplicita, limiti CPU e memoria, healthcheck per ogni servizio.
   - CI minima su ogni PR verso `main`: validazione Compose, build e test in container, ricerca segreti.
   - Gate: `docker compose config` valido, build e test verdi in container, stack che raggiunge lo stato healthy.
 
-- [ ] **T18 — Feature suite JetStream e dashboard di corrispondenza** (`BLOCKED` da T17)
+- [x] **T18 — Feature suite JetStream e dashboard di corrispondenza** (`DONE`, PR #29, gate `docs/gates/t18-gate.json`)
   - Esercitare sul ciclo di vita ordine, pagamento e fulfillment: stream e consumer idempotenti, ack, redelivery oltre `MaxDeliver` con backoff, DLQ, deduplica via `Nats-Msg-Id`, replay per sequence e per tempo, pending, restart con persistenza.
   - Avro canonico su NATS con Apicurio via `ccompat`, compatibilità positiva e negativa.
   - Test funzionali eseguiti in container contro lo stack reale, non simulato.
   - Dashboard: feature JetStream realmente in uso, lette dagli endpoint di monitoring NATS, con per ciascuna il costrutto Confluent Platform o Kafka corrispondente, la fonte documentale e l'etichetta esplicita di corrispondenza dichiarata, non misurata.
   - Le righe senza equivalente diretto vanno dichiarate come tali, in modo conservativo.
-  - Gate: `reports/t18-gate.json` machine-readable più la dashboard raggiungibile con dati reali.
+  - Gate: `docs/gates/t18-gate.json` machine-readable più la dashboard raggiungibile con dati reali.
 
-- [ ] **T15 — Documentazione finale e release v0.1.0** (`BLOCKED` da T18)
+- [ ] **T15 — Documentazione finale e release v0.1.0** (`READY` al merge di T18)
   - Runbook del solo percorso dimostrativo, troubleshooting essenziale e cleanup.
   - Sezione *Limitations* obbligatoria in `README.md` e nelle release notes, con l'elenco completo delle voci `NOT_TESTED` e `NOT_EXERCISED`.
   - Gate: clone pulito e riproduzione completa da un secondo ambiente.
@@ -72,6 +72,6 @@ Nessuna migrazione viene eseguita. La corrispondenza con Confluent Platform e Ka
 
 Storico: `T01 || T02` → `T03` → `T10` → `T04` → `T05`.
 
-Residuo per `v0.1.0`: `T17` → `T18` → `T15`.
+Residuo per `v0.1.0`: `T15`.
 
 I task in `SUPERSEDED`, `NOT_EXERCISED` e `CANCELLED` restano nel backlog come perimetro riattivabile, non come lavoro pianificato.

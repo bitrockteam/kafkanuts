@@ -1,0 +1,131 @@
+{
+  "disclaimer": "Corrispondenza dichiarata e citata, non misurata. Kafka e Confluent Platform non sono presenti in questo laboratorio: nessuna riga di questa tabella deriva da un confronto sperimentale. Le righe descrivono costrutti documentati, non equivalenze garantite.",
+  "sources": {
+    "jetstream": "https://docs.nats.io/nats-concepts/jetstream",
+    "jetstream-consumers": "https://docs.nats.io/nats-concepts/jetstream/consumers",
+    "kafka-design": "https://kafka.apache.org/documentation/#design",
+    "kafka-consumers": "https://kafka.apache.org/documentation/#consumerconfigs",
+    "confluent-sr": "https://docs.confluent.io/platform/current/schema-registry/index.html",
+    "apicurio-ccompat": "https://www.apicur.io/registry/docs/"
+  },
+  "rows": [
+    {
+      "feature": "Stream",
+      "kafka": "Topic con retention",
+      "relation": "parziale",
+      "note": "Uno stream cattura uno o piu' subject anche con wildcard; un topic Kafka e' un nome singolo partizionato. La cardinalita' non e' uno a uno.",
+      "source": "jetstream",
+      "evidence": "streams"
+    },
+    {
+      "feature": "Subject gerarchico con wildcard",
+      "kafka": "Nessun equivalente diretto",
+      "relation": "assente",
+      "note": "Kafka non ha una gerarchia di subject lato broker. La selezione per pattern e' una sottoscrizione regex lato client su nomi di topic.",
+      "source": "kafka-design",
+      "evidence": "subjects"
+    },
+    {
+      "feature": "Consumer durabile",
+      "kafka": "Consumer group",
+      "relation": "parziale",
+      "note": "Il consumer JetStream e' stato lato server con propria delivery policy; il group Kafka gestisce offset per partizione e rebalance. Le garanzie di distribuzione non coincidono.",
+      "source": "jetstream-consumers",
+      "evidence": "durables"
+    },
+    {
+      "feature": "Ack esplicito per messaggio",
+      "kafka": "Commit dell'offset",
+      "relation": "parziale",
+      "note": "L'ack JetStream e' per singolo messaggio; il commit Kafka avanza un offset e implica tutti i precedenti. Un ack fuori ordine non ha equivalente.",
+      "source": "jetstream-consumers",
+      "evidence": "ackPolicy"
+    },
+    {
+      "feature": "MaxDeliver con backoff",
+      "kafka": "Nessun equivalente lato broker",
+      "relation": "assente",
+      "note": "Il budget di riconsegna e la sequenza di backoff sono configurazione del consumer lato server. In Kafka il retry e' logica del client oppure di Kafka Connect.",
+      "source": "jetstream-consumers",
+      "evidence": "maxDeliver"
+    },
+    {
+      "feature": "Dead letter",
+      "kafka": "Nessun equivalente nativo in entrambi",
+      "relation": "assente",
+      "note": "JetStream non ha una DLQ nativa: qui e' un pattern applicativo costruito sull'advisory MAX_DELIVERIES. Confluent offre DLQ dentro Kafka Connect e ksqlDB, non nel broker.",
+      "source": "jetstream-consumers",
+      "evidence": "dlq"
+    },
+    {
+      "feature": "Deduplica con Nats-Msg-Id",
+      "kafka": "Producer idempotente",
+      "relation": "parziale",
+      "note": "JetStream deduplica lato server dentro una finestra temporale per stream. Kafka deduplica per sessione del producer e per partizione. Ambito e durata sono diversi: nessuno dei due e' exactly once end to end.",
+      "source": "jetstream",
+      "evidence": "dedupWindow"
+    },
+    {
+      "feature": "Replay per sequence",
+      "kafka": "Seek a offset",
+      "relation": "equivalente",
+      "note": "Entrambi consentono di ripartire da una posizione nota nel log.",
+      "source": "kafka-consumers",
+      "evidence": "suite"
+    },
+    {
+      "feature": "Replay per tempo",
+      "kafka": "offsetsForTimes",
+      "relation": "equivalente",
+      "note": "Entrambi risolvono un istante nella posizione corrispondente del log.",
+      "source": "kafka-consumers",
+      "evidence": "suite"
+    },
+    {
+      "feature": "num_pending del consumer",
+      "kafka": "Consumer lag",
+      "relation": "equivalente",
+      "note": "Stessa domanda operativa: quanti messaggi restano da consumare.",
+      "source": "jetstream-consumers",
+      "evidence": "pending"
+    },
+    {
+      "feature": "Storage su file con MaxAge",
+      "kafka": "retention.ms del topic",
+      "relation": "equivalente",
+      "note": "Entrambi scadono i messaggi per eta'.",
+      "source": "kafka-design",
+      "evidence": "storage"
+    },
+    {
+      "feature": "Apicurio via API ccompat",
+      "kafka": "Confluent Schema Registry",
+      "relation": "parziale",
+      "note": "Il wire format e' lo stesso: magic byte, id dello schema, corpo Avro. Ma il livello di compatibilita' iniziale differisce: Apicurio parte da NONE, Confluent Schema Registry da BACKWARD. Verificato in questo laboratorio: senza impostarlo esplicitamente il registry accetta anche uno schema incompatibile.",
+      "source": "apicurio-ccompat",
+      "verified": true,
+      "evidence": "suite"
+    },
+    {
+      "feature": "Compattazione per chiave",
+      "kafka": "Compacted topic",
+      "relation": "assente",
+      "note": "Non presente in questo laboratorio e non dimostrato. JetStream offre altre politiche di retention e KV separato.",
+      "source": "kafka-design"
+    },
+    {
+      "feature": "Transazioni ed exactly once processing",
+      "kafka": "Transazioni Kafka e EOS",
+      "relation": "assente",
+      "note": "Non presente in questo laboratorio e non dimostrato.",
+      "source": "kafka-design"
+    },
+    {
+      "feature": "Stream processing",
+      "kafka": "Kafka Streams e ksqlDB",
+      "relation": "assente",
+      "note": "Escluso dal perimetro. Il gate T10 ha dato esito C: il processing Flink su NATS resta fuori dal perimetro commerciale iniziale.",
+      "source": "kafka-design"
+    }
+  ]
+}
