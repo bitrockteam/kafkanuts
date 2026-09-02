@@ -68,10 +68,25 @@ Nessuna migrazione viene eseguita. La corrispondenza con Confluent Platform e Ka
   - Sezione *Limitations* obbligatoria in `README.md` e nelle release notes, con l'elenco completo delle voci `NOT_TESTED` e `NOT_EXERCISED`.
   - Gate: `docs/gates/t15-gate.json`, clone pulito e riproduzione completa.
 
+- [x] **T19 — Persistenza su percorso host e brief di deployment** (`DONE`, gate `docs/gates/t19-gate.json`)
+  - I due servizi con stato passano da volume Docker con nome a bind mount su `${KAFKANUTS_DATA_DIR:-./data}`: lo store JetStream e il database del registry restano visibili, salvabili e spostabili dal filesystem dell'host.
+  - `PGDATA` in una sottodirectory del mount, perché Postgres crei e possieda la propria directory.
+  - `docs/DEPLOYMENT.md`: brief autosufficiente per chi distribuirà lo stack, con il requisito di persistenza, la mappa per AWS, GCP e Azure e le precondizioni di sicurezza.
+  - Gate: partenza da `./data` inesistente, `docker compose down -v` seguito da ripartenza con la sequence che prosegue, suite funzionale verde.
+
+- [x] **T20 — Console del flusso live e catena causale verificata** (`DONE`, gate `docs/gates/t20-gate.json`)
+  - Servizio `console`: osservatore passivo di JetStream su consumer effimeri, decodifica Avro, flusso in SSE. Mai legato ai durable dei simulatori.
+  - Sezione *Flusso live* in cima alla dashboard esistente: una riga per ordine che cambia stato sul posto, con il sequence dello stream e la verifica della catena causale. Flusso applicativo e output di JetStream nella stessa pagina.
+  - Concatenazione degli eventi asserita da un test della suite funzionale, non affermata in prosa.
+  - Pillole della tabella di corrispondenza rese acromatiche: il verde su «equivalente» si leggeva come un `PASS` misurato.
+  - Gate: otto servizi healthy, flusso SSE con sequence reali ed eventi DLQ, suite 7/7.
+
 ## Ordine
 
 Storico: `T01 || T02` → `T03` → `T10` → `T04` → `T05`.
 
-Residuo per `v0.1.0`: nessuno. La wave è chiusa.
+Wave `v0.1.0`: chiusa. Wave `v0.2.0`: `T19` → `T20`, chiusa.
+
+Rimandati a `v0.3.0`: analisi statica, SBOM, provenance e firma della release, osservabilità, e l'arricchimento semantico del dominio — payload che evolvono, `PaymentRejected` distinto dal fallimento tecnico, `FulfillmentStarted`.
 
 I task in `SUPERSEDED`, `NOT_EXERCISED` e `CANCELLED` restano nel backlog come perimetro riattivabile, non come lavoro pianificato.

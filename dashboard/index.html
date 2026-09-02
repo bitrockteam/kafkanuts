@@ -31,8 +31,8 @@
   .note { color: var(--muted); font-size: 12.5px; }
   .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px;
          border: 1px solid var(--line); white-space: nowrap; }
-  .tag.eq { color: var(--ok); border-color: #24513f; }
-  .tag.part { color: var(--warn); border-color: #57471c; }
+  .tag.eq { color: var(--text); background: #232833; }
+  .tag.part { color: var(--muted); background: #1b1f27; }
   .tag.none { color: var(--off); }
   .live { color: var(--ok); font-variant-numeric: tabular-nums; }
   .live.off { color: var(--off); }
@@ -41,6 +41,29 @@
   a { color: var(--accent); }
   footer { color: var(--muted); font-size: 12px; padding: 0 28px 40px; max-width: 1180px; }
   #error { color: #ff8f8f; }
+  /* Flusso live. Il colore vive qui, dove i dati sono misurati sul sistema. */
+  .flowbar { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; font-size: 13px;
+             background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+  .flowbar b { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 7px; }
+  .dot.on { background: var(--ok); }
+  .dot.off { background: #ff6b6b; }
+  #flowstate.down { color: #ff8f8f; font-weight: 600; }
+  table#flow { min-width: 940px; }
+  #flow td { padding: 7px 14px; }
+  .path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; letter-spacing: 2px; }
+  .path .seen { color: var(--ok); }
+  .path .todo { color: #39404f; }
+  .path .dead { color: #ff6b6b; }
+  .st { font-weight: 600; }
+  .st.done { color: var(--ok); }
+  .st.dead { color: #ff8f8f; }
+  .st.run { color: var(--warn); }
+  .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: var(--muted); }
+  .chain.ok { color: var(--ok); }
+  .chain.ko { color: #ff8f8f; }
+  tr.fresh td { animation: flash .9s ease-out; }
+  @keyframes flash { from { background: #1d2a38; } to { background: transparent; } }
 </style>
 </head>
 <body>
@@ -50,6 +73,27 @@
 </header>
 <main>
   <div id="error"></div>
+
+  <h2>Flusso live degli eventi</h2>
+  <div class="flowbar">
+    <span><span class="dot off" id="flowdot"></span><span id="flowstate" class="down">in connessione…</span></span>
+    <span>ordini <b id="flowOrders">0</b></span>
+    <span>eventi <b id="flowEvents">0</b></span>
+    <span>completati <b id="flowDone">0</b></span>
+    <span>dead letter <b id="flowDead">0</b></span>
+    <span>ultimo seq <b id="flowSeq">—</b></span>
+  </div>
+  <div class="wrap" style="margin-top:12px"><table id="flow">
+    <thead><tr><th>Ora</th><th>Ordine</th><th>Percorso</th><th>Stato</th>
+      <th class="num">Seq</th><th>Catena causale</th><th>Ultimo evento</th></tr></thead>
+    <tbody></tbody></table></div>
+  <div class="note" style="margin-top:8px">
+    Una riga per ordine, che cambia stato sul posto. Il percorso
+    <span class="path"><span class="seen">●</span> <span class="seen">●</span> <span class="todo">●</span></span>
+    è ordine, pagamento, evasione; <span class="path"><span class="dead">⬢</span></span> è la dead letter.
+    Sorgente: consumer effimero JetStream su <code>kafkanuts.events.&gt;</code> e <code>kafkanuts.dlq.&gt;</code>,
+    decodificato Avro dal servizio <code>console</code>. Il numero di sequence è quello dello stream.
+  </div>
 
   <h2>Stack</h2>
   <div class="cards" id="overview"></div>
@@ -241,6 +285,182 @@ function renderMapping(mapping, evidences) {
   } catch (e) {
     $('#error').textContent = 'Dashboard non disponibile: ' + e.message;
   }
+})();
+
+// ---------------------------------------------------------------------------
+// Flusso live. Gli eventi arrivano in SSE dal servizio console, che li legge da
+// JetStream con un consumer effimero e li decodifica Avro. Il monitoring /jsz
+// sopra resta la fonte degli aggregati: qui non si ricalcolano i suoi numeri.
+// ---------------------------------------------------------------------------
+(() => {
+  const STAGES = ['OrderCreated', 'PaymentAuthorized', 'FulfillmentCompleted'];
+  const MAX_ORDERS = 300;
+  const MAX_ROWS = 25;
+  const STALE_MS = 20000;
+
+  const orders = new Map();
+  let events = 0;
+  let lastSeq = null;
+  let lastAt = 0;
+  let connected = false;
+  let dirty = true;
+
+  const short = (id) => (id ? String(id).slice(-8) : '—');
+  const clock = (ms) => new Date(ms).toLocaleTimeString('it-IT');
+
+  function onEvent(e) {
+    events += 1;
+    lastAt = Date.now();
+    let o = orders.get(e.aggregateId);
+    if (!o) {
+      o = { id: e.aggregateId, events: [], dead: false, seqFirst: e.seq, seqLast: e.seq, at: 0 };
+      orders.set(e.aggregateId, o);
+    }
+    if (e.stream === 'DLQ') {
+      o.dead = true;
+      o.deadFrom = e.eventType;
+    } else {
+      if (!o.events.some((x) => x.eventId === e.eventId)) o.events.push(e);
+      o.seqLast = Math.max(o.seqLast, e.seq);
+      o.seqFirst = Math.min(o.seqFirst, e.seq);
+      lastSeq = Math.max(lastSeq || 0, e.seq);
+    }
+    o.at = Math.max(o.at, e.occurredAt);
+    o.last = e;
+    o.fresh = true;
+    if (orders.size > MAX_ORDERS) {
+      let oldest = null;
+      for (const c of orders.values()) if (!oldest || c.at < oldest.at) oldest = c;
+      if (oldest) orders.delete(oldest.id);
+    }
+    dirty = true;
+  }
+
+  // Verifica la concatenazione sul vivo: stesso correlationId e causationId che
+  // punta all'evento precedente. E' la stessa proprieta' asserita dalla suite.
+  function chain(o) {
+    const seq = [...o.events].sort((a, b) => a.seq - b.seq);
+    if (seq.length < 2) return { text: '—', cls: '' };
+    for (let i = 1; i < seq.length; i += 1) {
+      if (seq[i].causationId !== seq[i - 1].eventId) return { text: '✗ rotta', cls: 'ko' };
+      if (seq[i].correlationId !== seq[0].correlationId) return { text: '✗ correlazione', cls: 'ko' };
+    }
+    return { text: '✓ ' + short(seq[0].correlationId), cls: 'ok' };
+  }
+
+  function state(o) {
+    const types = new Set(o.events.map((e) => e.eventType));
+    if (o.dead) return { word: 'dead letter', cls: 'dead' };
+    if (types.has('FulfillmentCompleted')) return { word: 'completato', cls: 'done' };
+    if (types.has('PaymentAuthorized')) return { word: 'in evasione', cls: 'run' };
+    return { word: 'in pagamento', cls: 'run' };
+  }
+
+  function path(o) {
+    const types = new Set(o.events.map((e) => e.eventType));
+    const span = document.createElement('span');
+    span.className = 'path';
+    STAGES.forEach((stage, i) => {
+      if (i) span.appendChild(document.createTextNode(' '));
+      const glyph = document.createElement('span');
+      glyph.className = types.has(stage) ? 'seen' : 'todo';
+      glyph.textContent = '●';
+      span.appendChild(glyph);
+    });
+    if (o.dead) {
+      span.appendChild(document.createTextNode(' '));
+      const dead = document.createElement('span');
+      dead.className = 'dead';
+      dead.textContent = '⬢';
+      span.appendChild(dead);
+    }
+    return span;
+  }
+
+  function setConnected(up) {
+    connected = up;
+    document.querySelector('#flowdot').className = 'dot ' + (up ? 'on' : 'off');
+    const label = document.querySelector('#flowstate');
+    label.className = up ? '' : 'down';
+    label.textContent = up ? 'flusso live' : 'flusso interrotto — console non raggiungibile';
+    dirty = true;
+  }
+
+  function render() {
+    // Una console ferma deve sembrare rotta, non tranquilla.
+    if (connected && lastAt && Date.now() - lastAt > STALE_MS) {
+      const label = document.querySelector('#flowstate');
+      label.className = 'down';
+      label.textContent = 'nessun evento da ' + Math.round((Date.now() - lastAt) / 1000) + ' s';
+      document.querySelector('#flowdot').className = 'dot off';
+      dirty = true;
+    }
+    if (!dirty) return;
+    dirty = false;
+
+    const all = [...orders.values()].sort((a, b) => b.at - a.at);
+    document.querySelector('#flowOrders').textContent = num(orders.size);
+    document.querySelector('#flowEvents').textContent = num(events);
+    document.querySelector('#flowDone').textContent =
+      num(all.filter((o) => o.events.some((e) => e.eventType === 'FulfillmentCompleted')).length);
+    document.querySelector('#flowDead').textContent = num(all.filter((o) => o.dead).length);
+    document.querySelector('#flowSeq').textContent = lastSeq === null ? '—' : num(lastSeq);
+
+    const body = document.querySelector('#flow tbody');
+    body.innerHTML = '';
+    for (const o of all.slice(0, MAX_ROWS)) {
+      const row = document.createElement('tr');
+      if (o.fresh) { row.className = 'fresh'; o.fresh = false; }
+
+      const when = document.createElement('td');
+      when.textContent = clock(o.at);
+      row.appendChild(when);
+
+      const id = document.createElement('td');
+      id.className = 'id';
+      id.textContent = short(o.id);
+      row.appendChild(id);
+
+      const p = document.createElement('td');
+      p.appendChild(path(o));
+      row.appendChild(p);
+
+      const st = state(o);
+      const stCell = document.createElement('td');
+      stCell.className = 'st ' + st.cls;
+      stCell.textContent = st.word;
+      row.appendChild(stCell);
+
+      const seq = document.createElement('td');
+      seq.className = 'num';
+      seq.textContent = o.seqFirst === o.seqLast ? num(o.seqFirst) : num(o.seqFirst) + '–' + num(o.seqLast);
+      row.appendChild(seq);
+
+      const c = chain(o);
+      const chainCell = document.createElement('td');
+      chainCell.className = 'id chain ' + c.cls;
+      chainCell.textContent = c.text;
+      row.appendChild(chainCell);
+
+      const last = document.createElement('td');
+      last.className = 'note';
+      last.textContent = o.dead
+        ? 'in dead letter dopo ' + txt(o.deadFrom)
+        : txt(o.last && o.last.eventType) + ' da ' + txt(o.last && o.last.producer);
+      row.appendChild(last);
+
+      body.appendChild(row);
+    }
+  }
+
+  const source = new EventSource('/api/events');
+  source.onopen = () => setConnected(true);
+  source.onerror = () => setConnected(false);
+  source.onmessage = (message) => {
+    if (!connected) setConnected(true);
+    try { onEvent(JSON.parse(message.data)); } catch (e) { /* riga illeggibile: si scarta */ }
+  };
+  setInterval(render, 500);
 })();
 </script>
 </body>
