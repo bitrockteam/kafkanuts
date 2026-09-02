@@ -1,5 +1,8 @@
 # ADR 0002: Avro e migrazione dei registry
 
+> **Ridotta dall'[ADR 0006](0006-solo-nats-jetstream.md) il 2026-09-02.** Con Confluent Schema Registry rimosso, la migrazione fra registry non viene eseguita né simulata. Resta valido l'uso di Apicurio come registry degli schemi Avro tramite API `ccompat`, e resta valido il principio che gli ID numerici di un registry non sono identità portabile.
+
+
 - Stato: accettato con spike di validazione
 - Data: 2026-08-31
 

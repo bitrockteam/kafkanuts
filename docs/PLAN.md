@@ -1,5 +1,8 @@
 # Piano esecutivo di kafkanuts
 
+> **Parzialmente superato.** L'[ADR 0006](adr/0006-solo-nats-jetstream.md) ha rimosso Kafka e Flink dal perimetro: il laboratorio dimostra le capacità del solo stack NATS JetStream e non esegue alcuna migrazione. Le sezioni su data plane Kafka, stream processing Flink, migrazione M0-M6, parità e osservabilità completa descrivono un perimetro non più costruito. Restano validi il contratto evento Avro, i principi di progetto e la disciplina sulle affermazioni non supportate. Lo stato di riferimento corrente è `TASKS.md`.
+
+
 > **Stato del piano:** baseline architetturale approvata; implementazione non avviata. Le decisioni accettate sono vincoli, mentre versioni, prestazioni e garanzie semantiche restano ipotesi finché i gate indicati sotto non producono evidenze ripetibili.
 
 ## 1. Scopo e criteri di successo
