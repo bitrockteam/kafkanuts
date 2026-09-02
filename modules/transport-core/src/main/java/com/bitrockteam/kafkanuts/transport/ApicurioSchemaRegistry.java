@@ -138,13 +138,26 @@ public final class ApicurioSchemaRegistry {
    * {@code NONE}, mentre Confluent Schema Registry adotta {@code BACKWARD}. Senza questa chiamata
    * il registry accetterebbe anche uno schema incompatibile.
    *
+   * <p>Anche questa chiamata puo' rispondere 409 quando piu' processi la eseguono insieme, quindi
+   * viene ritentata come la registrazione.
+   *
    * @param subject ccompat subject name
    * @param level compatibility level to enforce
    */
   public void enforceCompatibility(String subject, String level) {
     ObjectNode body = objectMapper.createObjectNode();
     body.put("compatibility", level);
-    send("PUT", "/config/" + subject, body.toString());
+    ConflictException lastConflict = null;
+    for (int attempt = 1; attempt <= CONFLICT_ATTEMPTS; attempt++) {
+      try {
+        send("PUT", "/config/" + subject, body.toString());
+        return;
+      } catch (ConflictException conflict) {
+        lastConflict = conflict;
+        pause(200L * attempt);
+      }
+    }
+    throw lastConflict;
   }
 
   /**

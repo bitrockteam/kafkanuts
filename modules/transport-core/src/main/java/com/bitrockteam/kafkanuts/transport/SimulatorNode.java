@@ -10,6 +10,15 @@ import java.util.Map;
  * richiede un broker in piedi.
  */
 public final class SimulatorNode implements AutoCloseable {
+  /**
+   * Attempts allowed while the rest of the stack finishes coming up.
+   *
+   * <p>I container partono insieme e le risorse condivise, subject del registry e topologia
+   * JetStream, vengono create in concorrenza. Un fallimento alla prima prova e' atteso; dichiarare
+   * subito il nodo inattivo lo lascerebbe spento per tutta la vita del container.
+   */
+  private static final int BOOTSTRAP_ATTEMPTS = 10;
+
   /** Service name reported by the health endpoint. */
   private final String service;
 
@@ -36,17 +45,27 @@ public final class SimulatorNode implements AutoCloseable {
     }
     LifecycleRunner started = null;
     String failure = null;
-    try {
-      started = new LifecycleRunner(role, natsUrl, registryUrl);
+    for (int attempt = 1; attempt <= BOOTSTRAP_ATTEMPTS && started == null; attempt++) {
+      try {
+        started = new LifecycleRunner(role, natsUrl, registryUrl);
+        failure = null;
+      } catch (InterruptedException interrupted) {
+        Thread.currentThread().interrupt();
+        failure = "interrupted while connecting";
+        break;
+      } catch (Exception cause) {
+        failure = describe(cause);
+        if (attempt == BOOTSTRAP_ATTEMPTS) {
+          cause.printStackTrace();
+        } else {
+          pause(Math.min(500L * attempt, 2000L));
+        }
+      }
+    }
+    if (started != null) {
       Thread thread = new Thread(started, service + "-lifecycle");
       thread.setDaemon(true);
       thread.start();
-    } catch (InterruptedException interrupted) {
-      Thread.currentThread().interrupt();
-      failure = "interrupted while connecting";
-    } catch (Exception cause) {
-      failure = describe(cause);
-      cause.printStackTrace();
     }
     this.runner = started;
     this.inactiveReason = failure;
@@ -76,6 +95,14 @@ public final class SimulatorNode implements AutoCloseable {
     payload.put("uniqueEvents", stats.uniqueEvents());
     payload.put("deadLettered", stats.deadLettered());
     return payload;
+  }
+
+  private static void pause(long millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+    }
   }
 
   private static String describe(Throwable cause) {
