@@ -55,7 +55,7 @@ Nessuna migrazione viene eseguita. La corrispondenza con Confluent Platform e Ka
   - CI minima su ogni PR verso `main`: validazione Compose, build e test in container, ricerca segreti.
   - Gate: `docker compose config` valido, build e test verdi in container, stack che raggiunge lo stato healthy.
 
-- [ ] **T18 — Feature suite JetStream e dashboard di corrispondenza** (`PR_OPEN`)
+- [x] **T18 — Feature suite JetStream e dashboard di corrispondenza** (`DONE`, PR #29, gate `docs/gates/t18-gate.json`)
   - Esercitare sul ciclo di vita ordine, pagamento e fulfillment: stream e consumer idempotenti, ack, redelivery oltre `MaxDeliver` con backoff, DLQ, deduplica via `Nats-Msg-Id`, replay per sequence e per tempo, pending, restart con persistenza.
   - Avro canonico su NATS con Apicurio via `ccompat`, compatibilità positiva e negativa.
   - Test funzionali eseguiti in container contro lo stack reale, non simulato.
