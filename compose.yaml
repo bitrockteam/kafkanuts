@@ -52,7 +52,9 @@ services:
       - "8222:8222"
     networks: [nats-net]
     volumes:
-      - nats-data:/data
+      # Bind mount su percorso host, non volume gestito da Docker: lo store JetStream
+      # deve restare visibile, salvabile e spostabile dal filesystem dell'host.
+      - ${KAFKANUTS_DATA_DIR:-./data}/nats:/data
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
       interval: 10s
@@ -67,11 +69,14 @@ services:
       POSTGRES_DB: "${T17_POSTGRES_DB:-apicurio}"
       POSTGRES_USER: "${T17_POSTGRES_USER:-apicurio}"
       POSTGRES_PASSWORD: "${T17_POSTGRES_PASSWORD:-apicurio}"
+      # PGDATA in una sottodirectory del mount: Postgres crea e possiede pgdata,
+      # invece di pretendere owner e permessi propri sulla radice montata dall'host.
+      PGDATA: /var/lib/postgresql/data/pgdata
     cpus: "${T17_POSTGRES_CPUS:-0.5}"
     mem_limit: "${T17_POSTGRES_MEMORY:-512m}"
     networks: [nats-net]
     volumes:
-      - registry-db-data:/var/lib/postgresql/data
+      - ${KAFKANUTS_DATA_DIR:-./data}/registry-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${T17_POSTGRES_USER:-apicurio} -d ${T17_POSTGRES_DB:-apicurio}"]
       interval: 10s
@@ -178,11 +183,40 @@ services:
       retries: 5
       start_period: 30s
 
+  console:
+    image: kafkanuts/console:t20
+    hostname: console
+    build:
+      context: .
+      dockerfile: Dockerfile.simulator
+      args: {MODULE: console}
+    environment:
+      - NATS_URL=nats://nats:4222
+      - REGISTRY_URL=http://registry:8080/apis/ccompat/v7
+    depends_on:
+      nats:
+        condition: service_healthy
+      registry:
+        condition: service_healthy
+    cpus: "${T20_CONSOLE_CPUS:-0.5}"
+    mem_limit: "${T20_CONSOLE_MEMORY:-512m}"
+    networks: [nats-net]
+    healthcheck:
+      test: ["CMD", "/bin/busybox", "wget", "-q", "-O-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   dashboard:
     image: nginx:1.27-alpine
     hostname: dashboard
     depends_on:
       nats:
+        condition: service_healthy
+      # nginx risolve gli upstream all'avvio: senza questa attesa il proxy verso
+      # console fallirebbe la partenza invece di degradare.
+      console:
         condition: service_healthy
     cpus: "${T18_DASHBOARD_CPUS:-0.25}"
     mem_limit: "${T18_DASHBOARD_MEMORY:-128m}"
@@ -243,9 +277,8 @@ networks:
     driver: bridge
 
 volumes:
+  # Resta un volume gestito: e' una cache di build, non un dato. Perderla costa
+  # tempo, non informazione, e tenerla fuori da ./data evita che un rm -rf dei
+  # dati porti via anche questa.
   maven-cache:
     name: ${T02_MAVEN_CACHE_VOLUME:-kafkanuts-maven-cache}
-  nats-data:
-    name: ${T17_NATS_DATA_VOLUME:-kafkanuts-nats-data}
-  registry-db-data:
-    name: ${T17_POSTGRES_DATA_VOLUME:-kafkanuts-registry-db}

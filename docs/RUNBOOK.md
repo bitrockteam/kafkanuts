@@ -37,7 +37,7 @@ La prima esecuzione scarica le immagini e compila i simulatori: mettere in conto
 docker compose ps
 ```
 
-Attesi sette servizi `healthy`: `nats`, `registry-db`, `registry`, i tre simulatori e `dashboard`.
+Attesi otto servizi `healthy`: `nats`, `registry-db`, `registry`, i tre simulatori, `console` e `dashboard`.
 
 ## 3. Il percorso dimostrativo
 
@@ -45,7 +45,18 @@ Attesi sette servizi `healthy`: `nats`, `registry-db`, `registry`, i tre simulat
 
 Apri <http://localhost:8090>.
 
-La pagina si aggiorna ogni cinque secondi leggendo `/varz` e `/jsz` dal monitoring NATS. Ha tre parti:
+Ha quattro parti.
+
+- **Flusso live degli eventi**: una riga per ordine, che cambia stato sul posto man mano che l'ordine
+  attraversa pagamento ed evasione. Mostra il numero di sequence dello stream, il percorso
+  `● ● ●`, lo stato, e la verifica della catena causale — stesso `correlationId`, `causationId` che
+  punta all'evento precedente. Gli eventi arrivano in SSE dal servizio `console`, che li legge da
+  JetStream con un **consumer effimero** e li decodifica Avro. La console è un osservatore passivo:
+  non si lega mai ai durable `payment-worker` e `fulfillment-worker`, quindi non sottrae messaggi
+  ai simulatori. Se il flusso si interrompe la barra in alto diventa rossa: una console ferma deve
+  sembrare rotta, non tranquilla.
+
+Le altre tre parti si aggiornano ogni cinque secondi leggendo `/varz` e `/jsz` dal monitoring NATS:
 
 - **Stack**: server, versione, connessioni, stream, consumer, messaggi salvati, storage su disco;
 - **Stream e Consumer**: la topologia reale, con ack policy, `MaxDeliver`, riconsegne e pending;

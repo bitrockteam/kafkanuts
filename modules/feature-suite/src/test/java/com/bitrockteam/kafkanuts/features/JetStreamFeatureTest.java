@@ -2,6 +2,7 @@ package com.bitrockteam.kafkanuts.features;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -31,7 +32,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -179,6 +183,93 @@ class JetStreamFeatureTest {
                 .startTime(boundary.atZone(ZoneOffset.UTC))
                 .build());
     assertFalse(byTime.isEmpty(), "replay by time must return the stored message");
+  }
+
+  @Test
+  void lifecycleEventsAreCausallyChained() throws Exception {
+    Map<String, List<EventEnvelope>> byAggregate = new LinkedHashMap<>();
+    for (EventEnvelope event : drainLifecycle()) {
+      byAggregate
+          .computeIfAbsent(event.getAggregateId().toString(), key -> new ArrayList<>())
+          .add(event);
+    }
+    List<EventEnvelope> chain =
+        byAggregate.values().stream().filter(events -> events.size() >= 3).findFirst().orElse(null);
+    assertNotNull(chain, "lo stream deve contenere almeno un ciclo di vita completo");
+
+    EventEnvelope order = chain.get(0);
+    EventEnvelope payment = chain.get(1);
+    EventEnvelope fulfillment = chain.get(2);
+
+    assertEquals("OrderCreated", order.getEventType().toString());
+    assertEquals("PaymentAuthorized", payment.getEventType().toString());
+    assertEquals("FulfillmentCompleted", fulfillment.getEventType().toString());
+
+    // Stesso aggregato: i tre eventi appartengono allo stesso ordine.
+    assertEquals(order.getAggregateId().toString(), payment.getAggregateId().toString());
+    assertEquals(order.getAggregateId().toString(), fulfillment.getAggregateId().toString());
+
+    // Stessa correlazione lungo tutta la catena.
+    assertEquals(order.getCorrelationId().toString(), payment.getCorrelationId().toString());
+    assertEquals(order.getCorrelationId().toString(), fulfillment.getCorrelationId().toString());
+
+    // Causazione: ogni evento punta a quello che lo ha provocato, non a se stesso.
+    assertEquals(order.getEventId().toString(), payment.getCausationId().toString());
+    assertEquals(payment.getEventId().toString(), fulfillment.getCausationId().toString());
+
+    // Identita' distinte: la catena non e' lo stesso evento ripubblicato.
+    assertNotEquals(order.getEventId().toString(), payment.getEventId().toString());
+    assertNotEquals(payment.getEventId().toString(), fulfillment.getEventId().toString());
+
+    // Ogni stadio dichiara il proprio produttore.
+    assertEquals("order-simulator", order.getProducer().toString());
+    assertEquals("payment-simulator", payment.getProducer().toString());
+    assertEquals("fulfillment-simulator", fulfillment.getProducer().toString());
+
+    printChain(chain);
+  }
+
+  /**
+   * Prints the verified chain so the evidence is readable, not only asserted.
+   *
+   * @param chain the three events of one order, in publication order
+   */
+  private static void printChain(List<EventEnvelope> chain) {
+    System.out.println("catena verificata, aggregato " + chain.get(0).getAggregateId());
+    System.out.println("  correlationId comune: " + chain.get(0).getCorrelationId());
+    for (EventEnvelope event : chain) {
+      System.out.println(
+          "  "
+              + event.getEventType()
+              + "  eventId="
+              + event.getEventId()
+              + "  causationId="
+              + event.getCausationId()
+              + "  producer="
+              + event.getProducer());
+    }
+  }
+
+  private List<EventEnvelope> drainLifecycle() throws Exception {
+    JetStreamSubscription subscription =
+        connection
+            .jetStream()
+            .subscribe(
+                JetStreamTopology.EVENT_SUBJECT_WILDCARD,
+                PullSubscribeOptions.builder()
+                    .configuration(
+                        ConsumerConfiguration.builder()
+                            .filterSubject(JetStreamTopology.EVENT_SUBJECT_WILDCARD)
+                            .deliverPolicy(DeliverPolicy.All)
+                            .build())
+                    .build());
+    List<EventEnvelope> decoded = new ArrayList<>();
+    for (Message message : subscription.fetch(500, Duration.ofSeconds(5))) {
+      decoded.add(codec.decode(message.getData()));
+      message.ack();
+    }
+    subscription.unsubscribe();
+    return decoded;
   }
 
   private static long deadLetterCount(JetStreamManagement management) throws Exception {
