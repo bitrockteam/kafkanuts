@@ -1,0 +1,41 @@
+{
+  "task": "T21",
+  "title": "README allineato alla demo NATS e release v0.2.1",
+  "result": "PASS",
+  "timestamp_utc": "2026-09-02T16:18:09Z",
+  "issue": 32,
+  "adr": ["0005-perimetro-qa-ridotto", "0006-solo-nats-jetstream"],
+  "checks": {
+    "scope_corrente": {
+      "status": "PASS",
+      "evidence": "L'apertura e la sezione Cosa viene eseguito oggi descrivono soltanto gli otto servizi presenti nel Compose e dichiarano Kafka, Confluent, ksqlDB e Flink assenti dallo stack."
+    },
+    "avvio_e_dashboard": {
+      "status": "PASS",
+      "evidence": "Il README documenta docker compose up -d --wait, gli otto healthcheck, l'apertura manuale di http://localhost:8090 e l'uso di nome host o IP quando Docker gira su una macchina remota."
+    },
+    "porte": {
+      "status": "PASS",
+      "evidence": "I mapping documentati corrispondono a compose.yaml: dashboard 8090, monitoring NATS 8222, Apicurio 8081 e protocollo NATS non HTTP 4222."
+    },
+    "evoluzione": {
+      "status": "PASS",
+      "evidence": "Kafka, migrazione, Flink, osservabilita' completa, produzione, HA, performance, dominio e supply chain sono raccolti sotto Evoluzione possibile e marcati come non presenti nella release corrente."
+    },
+    "limitazioni": {
+      "status": "PASS",
+      "evidence": "Il README mantiene la separazione fra NOT_TESTED e NOT_EXERCISED e ribadisce che la mappatura Kafka/Confluent e' documentale, non misurata."
+    },
+    "configurazione_compose": {
+      "status": "PASS",
+      "evidence": "docker compose config --quiet completato con exit code 0. Nessun container e' stato avviato."
+    },
+    "formato_e_link": {
+      "status": "PASS",
+      "evidence": "git diff --check completato senza errori; tutti i link relativi nei file modificati puntano a file o directory presenti nel repository."
+    }
+  },
+  "not_exercised": {
+    "runtime": "NOT_EXERCISED. La release modifica soltanto documentazione; per richiesta esplicita lo stack non e' stato avviato e nessun claim runtime nuovo e' stato introdotto."
+  }
+}
