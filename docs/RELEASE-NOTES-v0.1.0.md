@@ -32,6 +32,14 @@ Interrogato via API `ccompat`, **Apicurio Registry 3.0.6 parte da `compatibility
 
 Chi sostituisce il registry senza impostare il livello perde in silenzio una garanzia che credeva di avere. Vale la pena saperlo prima, non dopo.
 
+## Due difetti trovati dal gate di release
+
+Il gate di questa release riproduce tutto da un clone pulito con volumi vuoti, ed è così che sono emersi due difetti che le verifiche precedenti non avevano visto, perché giravano su uno stack già inizializzato.
+
+**L'healthcheck della dashboard era sempre rosso.** Interrogava `http://localhost:8080/`, ma nginx ascolta solo su IPv4 e busybox `wget` prova prima `::1`, ricevendo connection refused. La pagina era comunque raggiungibile dall'host, quindi il difetto non si era mai manifestato. Ora l'healthcheck usa `127.0.0.1`, come gli altri servizi.
+
+**La prima partenza su una macchina vergine non funzionava.** I tre simulatori partono insieme e creavano in concorrenza le stesse risorse: Apicurio rispondeva 409 alla creazione simultanea dello stesso subject, la compatibilità veniva impostata prima che il subject esistesse e restava a `NONE`, e solo il produttore di ordini provisionava la topologia, così un worker partito per primo trovava `stream not found` e restava inattivo per tutta la vita del container. Ora ogni ruolo provisiona in modo idempotente, le chiamate al registry ritentano sul conflitto e il bootstrap del nodo ha un backoff. Verificato con tre partenze a freddo consecutive su volumi vuoti.
+
 ## Limitations
 
 Questa sezione è normativa. Ciò che segue **non** è dimostrato da questa release, e nessuna affermazione contraria può esserne derivata.

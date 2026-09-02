@@ -1,0 +1,72 @@
+{
+  "task": "T15",
+  "title": "Runbook, limitations complete e release v0.1.0",
+  "result": "PASS",
+  "timestamp_utc": "2026-09-02T09:05:00Z",
+  "adr": ["0005-perimetro-qa-ridotto", "0006-solo-nats-jetstream"],
+  "metodo": "Riproduzione integrale da clone pulito di GitHub in una directory separata, con volumi Docker vuoti. Nessuno stato preesistente del laboratorio e' stato riusato: i volumi kafkanuts-nats-data, kafkanuts-registry-db e kafkanuts-maven-cache sono stati rimossi prima di iniziare.",
+  "checks": {
+    "clone_pulito": {
+      "status": "PASS",
+      "evidence": "git clone del repository in una directory separata, progetto Compose distinto, volumi rimossi con docker compose down -v prima del gate."
+    },
+    "compose_config": {
+      "status": "PASS",
+      "evidence": "docker compose config --quiet esce senza errori sul clone pulito."
+    },
+    "build_e_test_da_zero": {
+      "status": "PASS",
+      "evidence": "docker compose --profile test run --rm --no-deps --build test su cache Maven vuota: BUILD SUCCESS in 2 minuti e 45 secondi, 7 moduli, Spotless, Checkstyle e SpotBugs soglia High tutti verdi."
+    },
+    "stack_healthy_da_volumi_vuoti": {
+      "status": "PASS",
+      "evidence": "docker compose up -d --wait porta i 7 servizi allo stato healthy: nats, registry-db, registry, i tre simulatori e dashboard."
+    },
+    "partenza_a_freddo_ripetuta": {
+      "status": "PASS",
+      "evidence": "Tre partenze a freddo consecutive, ciascuna preceduta da docker compose down -v: in tutte e tre i tre simulatori riportano lifecycle active senza intervento manuale. La ripetizione serve perche' il difetto corretto era una corsa, e una singola esecuzione riuscita non sarebbe stata una prova."
+    },
+    "ciclo_di_vita_su_stack_vergine": {
+      "status": "PASS",
+      "evidence": "Dopo 25 secondi dall'avvio: order published 15; payment published 13, deliveries 19, duplicateDeliveries 3, uniqueEvents 13, deadLettered 1; fulfillment published 13, deliveries 13, uniqueEvents 13. La DLQ si popola da sola, senza fixture aggiuntive."
+    },
+    "registry_su_stack_vergine": {
+      "status": "PASS",
+      "evidence": "GET /apis/ccompat/v7/subjects risponde [\"kafkanuts.events-value\"]; GET /config/kafkanuts.events-value risponde {\"compatibilityLevel\":\"BACKWARD\"} gia' alla prima partenza."
+    },
+    "suite_funzionale_su_stack_vergine": {
+      "status": "PASS",
+      "evidence": "docker compose --profile suite run --rm feature-suite: JetStreamFeatureTest 6 test, 0 failure, 0 error, 0 skipped; AvroContractTest 4; TransportCoreTest 7. BUILD SUCCESS."
+    },
+    "dashboard_su_stack_vergine": {
+      "status": "PASS",
+      "evidence": "GET http://localhost:8090/ risponde 200 e il proxy GET /nats/varz risponde 200. Healthcheck del container verde dopo la correzione descritta sotto."
+    },
+    "persistenza_su_stack_vergine": {
+      "status": "PASS",
+      "evidence": "docker compose restart nats: 100 messaggi prima, 125 dopo. Nessuna perdita; la crescita e' dovuta ai simulatori che si riconnettono."
+    },
+    "runbook": {
+      "status": "PASS",
+      "evidence": "docs/RUNBOOK.md descrive il solo percorso dimostrativo: prerequisiti, avvio, sei tappe di osservazione, ricostruzione e test, troubleshooting con nove sintomi e cleanup. Tutti i comandi del runbook sono stati eseguiti nel clone pulito durante questo gate."
+    },
+    "limitations": {
+      "status": "PASS",
+      "evidence": "Sezione Limiti dichiarati del README riscritta come normativa, con tabelle per migrazione, feature senza controparte, prestazioni e sicurezza. Le release notes riportano lo stesso elenco. Ogni voce e' marcata NOT_TESTED o NOT_EXERCISED con la motivazione."
+    },
+    "nessun_segreto": {
+      "status": "PASS",
+      "evidence": "gitleaks v8.21.2 su tutta la cronologia: no leaks found. Controllo manuale dei file aggiunti in T15: nessuna credenziale."
+    }
+  },
+  "difetti_trovati_e_corretti": {
+    "healthcheck_dashboard_sempre_rosso": "Il servizio dashboard era in realta' sempre unhealthy. L'healthcheck interrogava http://localhost:8080/, ma nginx ascolta solo su IPv4 e busybox wget prova prima ::1, ricevendo connection refused. In T18 il container era stato avviato senza --wait e il difetto non era emerso, perche' la pagina era comunque raggiungibile dall'host. Corretto usando 127.0.0.1, coerente con gli altri servizi. La rettifica e' registrata anche in docs/gates/t18-gate.json.",
+    "partenza_a_freddo_non_funzionante": "Sulla prima partenza con volumi vuoti due simulatori su tre restavano inattivi in modo permanente. Tre cause distinte. Primo: i tre processi creavano in concorrenza lo stesso subject e Apicurio rispondeva 409; una volta che il subject esiste la registrazione dello stesso schema e' idempotente, quindi la chiamata viene ora ritentata con backoff, e lo stesso vale per PUT /config. Secondo: la compatibilita' veniva imposta prima della registrazione, quando il subject non esiste ancora, e il livello restava NONE; ora si registra prima e si impone il livello dopo. Terzo: solo il produttore di ordini provisionava la topologia, quindi un worker avviato per primo trovava stream not found e restava spento per tutta la vita del container; ora provisiona ogni ruolo, in modo idempotente e ritentato, e il bootstrap del nodo ha un backoff proprio. Nessuna di queste tre cause era osservabile su uno stack gia' inizializzato: sono emerse solo perche' il gate parte da volumi vuoti."
+  },
+  "not_exercised": {
+    "riproduzione_su_seconda_macchina_fisica": "NOT_EXERCISED. La riproduzione e' avvenuta da clone pulito e volumi vuoti sulla stessa macchina e sullo stesso Docker Engine. Sistema operativo, architettura e versione di Docker diversi non sono stati provati.",
+    "riproduzione_su_rete_senza_accesso_alle_registry": "NOT_EXERCISED. Il gate scarica immagini e dipendenze Maven dalla rete. Un ambiente air gapped non e' stato provato.",
+    "analisi_statica_sbom_firma_della_release": "NOT_EXERCISED, rimandate a v0.2.0. La release dichiara che l'analisi automatica non e' stata eseguita, non l'assenza di vulnerabilita'.",
+    "tutte_le_voci_di_perimetro": "L'elenco completo delle voci NOT_TESTED e NOT_EXERCISED della release e' nella sezione Limiti dichiarati del README e nella sezione Limitations delle release notes. Restano invariate rispetto ai gate T17 e T18."
+  }
+}

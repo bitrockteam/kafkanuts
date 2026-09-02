@@ -129,6 +129,12 @@ Build, test unitari, Spotless, Checkstyle e SpotBugs con soglia High.
 
 > Usa sempre `--build`. Senza, un layer Docker in cache può compilare sorgenti vecchi e restituire un `BUILD SUCCESS` che non corrisponde al codice che hai davanti. È successo davvero due volte in questo progetto.
 
+Se Spotless segnala violazioni di formato, il profilo `test` non può correggerle: copia i sorgenti nell'immagine invece di montarli, quindi `spotless:apply` scriverebbe dentro il container. Per riformattare sull'host serve un bind mount:
+
+```bash
+docker run --rm -v "$PWD:/workspace" -w /workspace -v kafkanuts-maven-cache:/root/.m2 maven:3.9.11-eclipse-temurin-21 mvn -B -ntp spotless:apply
+```
+
 ## 5. Troubleshooting
 
 | Sintomo | Causa probabile | Rimedio |

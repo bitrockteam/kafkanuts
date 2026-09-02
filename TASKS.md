@@ -63,7 +63,7 @@ Nessuna migrazione viene eseguita. La corrispondenza con Confluent Platform e Ka
   - Le righe senza equivalente diretto vanno dichiarate come tali, in modo conservativo.
   - Gate: `docs/gates/t18-gate.json` machine-readable più la dashboard raggiungibile con dati reali.
 
-- [ ] **T15 — Documentazione finale e release v0.1.0** (`PR_OPEN`)
+- [x] **T15 — Documentazione finale e release v0.1.0** (`DONE`, gate `docs/gates/t15-gate.json`)
   - Runbook del solo percorso dimostrativo, troubleshooting essenziale e cleanup.
   - Sezione *Limitations* obbligatoria in `README.md` e nelle release notes, con l'elenco completo delle voci `NOT_TESTED` e `NOT_EXERCISED`.
   - Gate: `docs/gates/t15-gate.json`, clone pulito e riproduzione completa.
@@ -72,6 +72,6 @@ Nessuna migrazione viene eseguita. La corrispondenza con Confluent Platform e Ka
 
 Storico: `T01 || T02` → `T03` → `T10` → `T04` → `T05`.
 
-Residuo per `v0.1.0`: `T15`.
+Residuo per `v0.1.0`: nessuno. La wave è chiusa.
 
 I task in `SUPERSEDED`, `NOT_EXERCISED` e `CANCELLED` restano nel backlog come perimetro riattivabile, non come lavoro pianificato.
