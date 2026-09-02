@@ -75,5 +75,8 @@
   },
   "note_di_merito": {
     "divergenza_apicurio_confluent": "Trovata durante la verifica live e non prevista dal piano: interrogato via API ccompat, Apicurio Registry 3.0.6 parte da compatibilityLevel NONE, sia globale sia per subject, e quindi accetta anche uno schema incompatibile. Confluent Schema Registry parte invece da BACKWARD. La correzione e' in codice di produzione, non nel test: AvroEventCodec impone esplicitamente BACKWARD sul subject alla costruzione. Il test asserisce il livello imposto e poi che uno schema incompatibile venga rifiutato. E' un punto rilevante per l'offerta: la compatibilita' dei contratti non e' ereditata per default cambiando registry."
+  },
+  "correzione_successiva": {
+    "stack_health": "Rettifica emersa dal gate T15. L'evidenza qui sopra dichiarava sette servizi healthy: non era vero per la dashboard. Il suo healthcheck interrogava http://localhost:8080/, ma nginx ascolta solo su IPv4 e busybox wget prova prima ::1, quindi riceveva connection refused. In T18 il servizio era stato avviato senza --wait e il difetto non era emerso; la pagina era comunque raggiungibile dall'host, e tutte le altre evidenze di T18 restano valide. L'healthcheck usa ora 127.0.0.1, come gli altri servizi. Corretto in T15."
   }
 }

@@ -14,9 +14,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Runs one simulator role against a live JetStream stack.
  *
- * <p>Il produttore di ordini crea anche la topologia, in modo idempotente. I due worker consumano
- * con ack esplicito; il worker dei pagamenti fallisce deterministicamente una quota di ordini per
- * esercitare redelivery, backoff e instradamento in dead letter.
+ * <p>Ogni ruolo crea la topologia, in modo idempotente. I due worker consumano con ack esplicito;
+ * il worker dei pagamenti fallisce deterministicamente una quota di ordini per esercitare
+ * redelivery, backoff e instradamento in dead letter.
  */
 public final class LifecycleRunner implements AutoCloseable, Runnable {
   /** Role played by this runner. */
@@ -58,9 +58,9 @@ public final class LifecycleRunner implements AutoCloseable, Runnable {
     this.role = role;
     this.connection = LifecycleSupport.connect(natsUrl);
     this.codec = LifecycleSupport.codec(registryUrl);
-    if (role == LifecycleRole.ORDER_PRODUCER) {
-      LifecycleSupport.provision(connection);
-    }
+    // Provisiona ogni ruolo, non solo il produttore: l'operazione e' idempotente e cosi' un
+    // worker che parte per primo non dipende dall'ordine di avvio degli altri container.
+    LifecycleSupport.provision(connection);
     this.publisher =
         new JetStreamAdapter(connection, codec, outputSubject(role), producerName(role));
     this.worker =

@@ -6,6 +6,14 @@ Il progetto mette a confronto i due ecosistemi su un flusso applicativo realisti
 
 > **Stato:** lo stack solo NATS JetStream è in piedi e le feature dichiarate sono esercitate da test funzionali contro il sistema reale. Resta aperto T15: runbook e release `v0.1.0`.
 
+## Come si prova
+
+```bash
+docker compose up -d --wait
+```
+
+Poi apri <http://localhost:8090>. Il percorso completo, con troubleshooting e cleanup, è nel [runbook](docs/RUNBOOK.md).
+
 ## Obiettivi
 
 La demo deve permettere a un operatore di:
@@ -209,6 +217,7 @@ I task da T05 a T14 sono chiusi, superati o non esercitati per effetto dell'ADR 
 
 ## Documentazione
 
+- [Runbook della demo](docs/RUNBOOK.md)
 - [Piano esecutivo completo](docs/PLAN.md)
 - [Architettura e reti](docs/ARCHITECTURE.md)
 - [Budget risorse](docs/RESOURCE-BUDGET.md)
@@ -223,14 +232,48 @@ I task da T05 a T14 sono chiusi, superati o non esercitati per effetto dell'ADR 
 
 ## Limiti dichiarati
 
-`kafkanuts` è un laboratorio tecnico, non un sizing di produzione. La prima release non include Kubernetes, servizi cloud gestiti, multi-region, disaster recovery geografico o garanzie prestazionali generalizzabili.
+`kafkanuts` è un laboratorio tecnico, non un sizing di produzione. Questa sezione è normativa: elenca per intero ciò che la release **non** dimostra. I gate in [docs/gates/](docs/gates/) ne sono la fonte machine-readable.
 
-In particolare, questa release **non** dimostra:
+### Migrazione e confronto
 
-- una migrazione da Kafka a NATS: nessuna migrazione viene eseguita e Kafka non è presente nello stack;
-- parità, cutover o rollback fra i due trasporti;
-- equivalenza misurata fra costrutti Confluent e costrutti JetStream: la corrispondenza mostrata dalla dashboard è dichiarata e citata;
-- prestazioni, capacità, alta disponibilità o costi.
+| Voce | Stato | Motivo |
+|---|---|---|
+| migrazione da Kafka a NATS | `NOT_EXERCISED` | nessuna migrazione viene eseguita; Kafka è assente dallo stack per [ADR 0006](docs/adr/0006-solo-nats-jetstream.md) |
+| parità, cutover e rollback fra due trasporti | `NOT_EXERCISED` | richiedevano due data plane in piedi (T11) |
+| migrazione registry e rimappatura degli schema ID | `NOT_EXERCISED` | richiedeva Confluent Schema Registry accanto ad Apicurio (T09) |
+| equivalenza misurata fra costrutti Confluent e JetStream | `NOT_EXERCISED` | la corrispondenza mostrata dalla dashboard è **dichiarata e citata**, mai misurata |
+
+### Feature senza controparte dimostrata
+
+| Voce | Stato | Motivo |
+|---|---|---|
+| compacted topic e compattazione per chiave | `NOT_EXERCISED` | fuori perimetro v0.1.0 |
+| transazioni ed exactly once processing | `NOT_EXERCISED` | fuori perimetro v0.1.0 |
+| stream processing, Kafka Streams, ksqlDB, Flink | `NOT_EXERCISED` | escluso dall'esito C del gate T10 e dall'ADR 0006 |
+
+### Prestazioni, capacità, disponibilità
+
+| Voce | Stato | Motivo |
+|---|---|---|
+| percentili di latenza, throughput, burst, soak | `NOT_TESTED` | fuori perimetro per [ADR 0005](docs/adr/0005-perimetro-qa-ridotto.md) |
+| dataset di capacità, RTO e RPO misurati | `NOT_TESTED` | idem |
+| profilo NATS in alta disponibilità, cluster, partizioni di rete, failover | `NOT_EXERCISED` | verificato solo il riavvio di un singolo nodo |
+| costi, risparmio, sizing economico | `NOT_EXERCISED` | nessun dato di costo è prodotto o derivabile da questa release |
+
+I contatori esposti dai simulatori e dalla dashboard sono **conteggi funzionali, non benchmark**. Nessun numero di questa release può essere usato come misura di prestazione o come base di un dimensionamento.
+
+### Sicurezza e operatività
+
+| Voce | Stato | Motivo |
+|---|---|---|
+| TLS e autenticazione su NATS | `NOT_EXERCISED` | assetto di laboratorio |
+| autenticazione su Apicurio e sulla dashboard | `NOT_EXERCISED` | assetto di laboratorio |
+| analisi statica, scanner immagini, SBOM, provenance, firma | `NOT_EXERCISED` | rimandati a `v0.2.0`; la release dichiara che l'analisi automatica non è stata eseguita, non l'assenza di vulnerabilità |
+| osservabilità con Prometheus, Grafana, Loki, OpenTelemetry | `NOT_EXERCISED` | rimandata a `v0.2.0`; in v0.1.0 la dashboard legge direttamente il monitoring NATS |
+| render della dashboard su una matrice di browser | `NOT_EXERCISED` | verificato eseguendo lo script della pagina contro lo stack vivo |
+| Kubernetes, servizi cloud gestiti, multi-region, disaster recovery geografico | fuori perimetro | non previsti in v0.1.0 |
+
+Le credenziali PostgreSQL nel Compose sono valori di laboratorio con default espliciti, dichiarati come tali e non riusabili fuori dalla demo.
 
 ## Licenza
 

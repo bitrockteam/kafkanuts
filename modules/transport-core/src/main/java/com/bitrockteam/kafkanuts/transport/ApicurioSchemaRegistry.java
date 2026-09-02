@@ -30,6 +30,15 @@ public final class ApicurioSchemaRegistry {
   /** JSON mapper for registry payloads. */
   private final ObjectMapper objectMapper = new ObjectMapper();
 
+  /**
+   * Attempts allowed when two processes create the same subject at the same time.
+   *
+   * <p>La creazione concorrente dello stesso subject fa rispondere Apicurio con 409. Una volta che
+   * il subject esiste, la registrazione dello stesso schema è idempotente e restituisce lo stesso
+   * identificatore, quindi basta ritentare.
+   */
+  private static final int CONFLICT_ATTEMPTS = 5;
+
   /** Cache from schema text to registry identifier. */
   private final Map<String, Integer> idBySchema = new ConcurrentHashMap<>();
 
@@ -64,14 +73,32 @@ public final class ApicurioSchemaRegistry {
     ObjectNode body = objectMapper.createObjectNode();
     body.put("schemaType", "AVRO");
     body.put("schema", schema);
-    JsonNode response = send("POST", "/subjects/" + subject + "/versions", body.toString());
-    int id = response.path("id").asInt();
-    if (id <= 0) {
-      throw new IllegalStateException("registry did not return a schema id for " + subject);
+    ConflictException lastConflict = null;
+    for (int attempt = 1; attempt <= CONFLICT_ATTEMPTS; attempt++) {
+      try {
+        JsonNode response = send("POST", "/subjects/" + subject + "/versions", body.toString());
+        int id = response.path("id").asInt();
+        if (id <= 0) {
+          throw new IllegalStateException("registry did not return a schema id for " + subject);
+        }
+        idBySchema.put(schema, id);
+        schemaById.put(id, schema);
+        return id;
+      } catch (ConflictException conflict) {
+        lastConflict = conflict;
+        pause(200L * attempt);
+      }
     }
-    idBySchema.put(schema, id);
-    schemaById.put(id, schema);
-    return id;
+    throw lastConflict;
+  }
+
+  private static void pause(long millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("registry retry interrupted", interrupted);
+    }
   }
 
   /**
@@ -111,13 +138,26 @@ public final class ApicurioSchemaRegistry {
    * {@code NONE}, mentre Confluent Schema Registry adotta {@code BACKWARD}. Senza questa chiamata
    * il registry accetterebbe anche uno schema incompatibile.
    *
+   * <p>Anche questa chiamata puo' rispondere 409 quando piu' processi la eseguono insieme, quindi
+   * viene ritentata come la registrazione.
+   *
    * @param subject ccompat subject name
    * @param level compatibility level to enforce
    */
   public void enforceCompatibility(String subject, String level) {
     ObjectNode body = objectMapper.createObjectNode();
     body.put("compatibility", level);
-    send("PUT", "/config/" + subject, body.toString());
+    ConflictException lastConflict = null;
+    for (int attempt = 1; attempt <= CONFLICT_ATTEMPTS; attempt++) {
+      try {
+        send("PUT", "/config/" + subject, body.toString());
+        return;
+      } catch (ConflictException conflict) {
+        lastConflict = conflict;
+        pause(200L * attempt);
+      }
+    }
+    throw lastConflict;
   }
 
   /**
@@ -151,6 +191,9 @@ public final class ApicurioSchemaRegistry {
     try {
       HttpResponse<String> response =
           httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() == 409) {
+        throw new ConflictException("registry call " + method + " " + path + " conflicted");
+      }
       if (response.statusCode() >= 400) {
         throw new IllegalStateException(
             "registry call " + method + " " + path + " failed: " + response.statusCode());
@@ -161,6 +204,21 @@ public final class ApicurioSchemaRegistry {
     } catch (InterruptedException cause) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException("registry call interrupted", cause);
+    }
+  }
+
+  /** Raised when the registry answers 409, typically on concurrent creation of a subject. */
+  private static final class ConflictException extends IllegalStateException {
+    /** Serialization identifier. */
+    private static final long serialVersionUID = 1L;
+
+    /**
+     * Creates the exception.
+     *
+     * @param message description of the conflicting call
+     */
+    ConflictException(String message) {
+      super(message);
     }
   }
 }
