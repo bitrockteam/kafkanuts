@@ -21,3 +21,9 @@ Main richiede pull request, cronologia lineare, conversazioni risolte e blocco d
 - ogni turno utile termina con commit/PR o blocco visibile;
 - più disciplina documentale, compensata da meno token spesi per ricostruire contesto;
 - il watcher resta semplice e non acquisisce autorità di implementazione.
+
+## Aggiornamento del 2026-09-02
+
+Il contratto Git di questa ADR resta in vigore. Cambia soltanto la distribuzione dei ruoli: il ciclo a tre attori (Luna implementa, watcher mantiene liveness, Codex/Sol apre PR e unisce) è sostituito da un esecutore singolo che implementa, apre la pull request, svolge una review scritta e unisce su `main`. Vedi `AGENTS.md`, `docs/EXECUTION-HANDOFF.md` e `docs/adr/0005-perimetro-qa-ridotto.md`.
+
+Poiché autore e reviewer coincidono per costruzione, vale la regola di astensione: un problema di architettura, sicurezza, semantica o budget individuato in review non si risolve unilateralmente, ma torna allo sponsor umano come `BLOCKED`.

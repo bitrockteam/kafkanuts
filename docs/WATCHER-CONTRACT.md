@@ -1,5 +1,7 @@
 # Contratto del watcher Herdr
 
+> **Documento storico.** Il ciclo a tre attori (esecutore Luna, watcher PowerShell, reviewer Codex/Sol) è stato ritirato il 2026-09-02 a favore di un esecutore singolo. Vedi `AGENTS.md`, `docs/EXECUTION-HANDOFF.md` e `docs/adr/0005-perimetro-qa-ridotto.md`. Questo file resta come registrazione della decisione precedente e non è più vincolante.
+
 ## Scopo
 
 Il watcher mantiene liveness e continuità dell'esecutore Luna senza diventare un secondo implementatore. È un componente operativo locale; la sua configurazione concreta verrà affinata insieme quando l'ambiente Herdr sarà disponibile. Questo documento stabilisce già i confini che quella configurazione deve rispettare.

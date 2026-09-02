@@ -2,7 +2,9 @@
 
 ## Uso
 
-Gli stati ammessi sono `READY`, `IN_PROGRESS`, `HANDOFF_READY`, `PR_OPEN`, `BLOCKED`, `DONE`. Dopo il bootstrap, ogni task deve avere una issue GitHub omonima. Un solo task può essere `IN_PROGRESS` per ogni esecutore. Luna seleziona il primo `READY` i cui prerequisiti sono `DONE`.
+Gli stati ammessi sono `READY`, `IN_PROGRESS`, `HANDOFF_READY`, `PR_OPEN`, `BLOCKED`, `DONE`. Dopo il bootstrap, ogni task deve avere una issue GitHub omonima. Un solo task può essere `IN_PROGRESS` per ogni esecutore. L'esecutore seleziona il primo `READY` i cui prerequisiti sono `DONE`.
+
+I gate di questo backlog sono limitati dal perimetro di `docs/QA-SCOPE.md`, approvato in `docs/adr/0005-perimetro-qa-ridotto.md`. Ogni requisito fuori perimetro è `NOT_TESTED` con motivazione nel report, mai un `PASS`.
 
 Il completamento reale richiede il merge in `main`; una PR aperta non equivale a `DONE`.
 
@@ -56,8 +58,8 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
 - [ ] **T07 — JetStream baseline e feature suite** (`BLOCKED` da T02,T04)
   - Stream/consumer provisioning idempotente e persistenza.
   - Coprire ack, redelivery, MaxDeliver/backoff, dedup, DLQ, replay, pending e restart.
-  - Profilo HA a tre nodi come estensione separabile.
-  - Gate: functional suite machine-readable.
+  - Profilo HA a tre nodi: fuori perimetro v0.1.0, `NOT_TESTED`.
+  - Gate: functional suite machine-readable su singolo nodo, più end-to-end M0 NATS.
 
 - [ ] **T08 — Apicurio e Avro su NATS** (`BLOCKED` da T03,T07)
   - Apicurio/PostgreSQL, codec condiviso, ccompat e variante schema header.
@@ -72,33 +74,38 @@ Il completamento reale richiede il merge in `main`; una PR aperta non equivale a
 - [ ] **T11 — Dual run, shadow, cutover e rollback** (`BLOCKED` da T06,T09,T10)
   - Migration controller, bridge dove necessario e parity verifier.
   - Automatizzare M1-M6 per ogni simulatore.
-  - Gate: report per fase, soglie dichiarate e rollback senza perdita logica.
+  - Gate G3 ridotto: report per fase con conteggi, outcome terminali, checksum normalizzato, duplicati visibili e rollback senza perdita logica.
+  - Latenza, throughput, RTO e soglie prestazionali: `NOT_TESTED`.
 
 - [ ] **T12 — Osservabilità Grafana/Loki/Prometheus/OTel** (`BLOCKED` da T02,T05,T07)
-  - Provisioning Git-based, Alloy, dashboard e alert di laboratorio.
-  - Tempo nel profilo `tracing`.
-  - Gate: correlation end-to-end e budget completo rispettato.
+  - Prometheus e Grafana con provisioning Git-based e una dashboard di parità.
+  - Loki, Tempo, Alloy, profilo `tracing` e correlazione end-to-end: fuori perimetro v0.1.0, `NOT_TESTED`.
+  - Gate: dashboard popolata da uno scenario reale e budget risorse rispettato.
 
-- [ ] **T13 — Failure, replay, schema evolution e performance** (`BLOCKED` da T11,T12)
-  - Matrice failure deterministica, replay, burst e soak.
-  - Misurare archetipi per payload, throughput, retention, replica e numero di consumer; esportare utilizzo CPU/RAM/storage e metriche di recovery come input neutro per curve di costo esterne.
-  - Gate: risultati JUnit/JSON e dataset CSV/Markdown riproducibile; nessun prezzo, percentuale di risparmio o claim non supportato dai dati.
+- [ ] **T13 — Failure e replay, perimetro ridotto** (`BLOCKED` da T11,T12)
+  - Tre scenari di fallimento deterministici: restart broker Kafka, redelivery JetStream oltre MaxDeliver, checkpoint/restart Flink.
+  - Un replay da offset, sequence o time con esito verificabile.
+  - Schema evolution: compatibilità positiva e negativa già coperte da T03 e T08, qui solo verifica di regressione.
+  - Burst, soak, percentili, dataset di capacità CPU/RAM/storage: fuori perimetro v0.1.0, `NOT_TESTED`.
+  - Gate: risultati JSON riproducibili; nessun prezzo, percentuale di risparmio o claim prestazionale.
 
 ## Wave 5 — Supply chain e release
 
 - [ ] **T14 — CI/CD, security hardening, SBOM e attestazioni** (`BLOCKED` da T01,T02; avviabile incrementalmente)
-  - Actions pin a SHA, CodeQL, Trivy, Gitleaks, Dependency Review, Dependabot, CycloneDX.
-  - Immagini non-root/minimi privilegi, GHCR, provenance e firma quando configurabile.
-  - Gate: nessun High/Critical non accettato, required checks pronti per ruleset.
+  - Actions pin a SHA, ricerca segreti, Dependabot, build e test in CI Linux.
+  - Immagini non-root e minimi privilegi.
+  - CodeQL, Trivy, Dependency Review, CycloneDX, GHCR, provenance e firma: fuori perimetro v0.1.0, `NOT_TESTED`, rimandati a v0.2.0.
+  - Gate: CI verde su build, test e secret scan; required checks pronti per ruleset.
 
 - [ ] **T15 — Documentazione finale e release v0.1.0** (`BLOCKED` da T11-T14)
   - Runbook Windows/Linux/macOS, demo script, troubleshooting, limitations e cleanup.
+  - Sezione *Limitations* obbligatoria in `README.md` e nelle release notes, con l'elenco completo delle voci `NOT_TESTED` di `docs/QA-SCOPE.md`.
   - Separare nel demo script le prove tecniche dagli input commerciali; non includere fatture o dati cliente nel repository.
-  - Pubblicare JAR, immagini, SBOM e release notes.
+  - Pubblicare JAR, immagini e release notes. SBOM: `NOT_TESTED`, rimandato a v0.2.0.
   - Gate: clone pulito e riproduzione completa da un secondo ambiente.
 
 ## Ordine PR suggerito
 
 `T01 || T02` → `T03` → `T10` → `T04` → (`T05` || `T07`) → `T06` → `T08` → `T09` → `T11` → `T12` → `T13` → `T14` → `T15`.
 
-La numerazione identifica le issue e non implica più l'ordine cronologico: T10 viene anticipato per ritirare il rischio Flink/NATS prima di costruire i simulatori. T01 e T02 possono procedere in parallelo solo con branch/worktree distinti. T05 e T07 diventano indipendenti dopo T04, ma il watcher assegna a Luna un solo task per volta salvo decisione esplicita registrata in issue. T12 e T14 possono iniziare incrementalmente, ma diventano `DONE` soltanto dopo l'integrazione finale.
+La numerazione identifica le issue e non implica più l'ordine cronologico: T10 viene anticipato per ritirare il rischio Flink/NATS prima di costruire i simulatori. T01 e T02 possono procedere in parallelo solo con branch/worktree distinti. T05 e T07 diventano indipendenti dopo T04, ma l'esecutore lavora un solo task per volta salvo decisione esplicita registrata in issue. T12 e T14 possono iniziare incrementalmente, ma diventano `DONE` soltanto dopo l'integrazione finale.
