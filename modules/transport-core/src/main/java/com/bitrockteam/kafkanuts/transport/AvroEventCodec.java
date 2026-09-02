@@ -40,8 +40,10 @@ public final class AvroEventCodec {
   public AvroEventCodec(String subject, ApicurioSchemaRegistry registry) {
     this.subject = subject;
     this.registry = registry;
-    registry.enforceCompatibility(subject, DEFAULT_COMPATIBILITY);
+    // Prima la registrazione, poi il livello: su un registry vuoto il subject non esiste
+    // ancora e la configurazione di compatibilita' non avrebbe nulla a cui applicarsi.
     this.writerSchemaId = registry.register(subject, EventEnvelope.getClassSchema().toString());
+    registry.enforceCompatibility(subject, DEFAULT_COMPATIBILITY);
   }
 
   /**

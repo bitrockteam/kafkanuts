@@ -12,6 +12,14 @@ public final class LifecycleSupport {
   /** Delivery attempts allowed before a message is routed to the dead letter stream. */
   public static final int MAX_DELIVER = 3;
 
+  /**
+   * Attempts allowed when provisioning collides with another node doing the same.
+   *
+   * <p>I tre simulatori partono insieme e provisionano la stessa topologia. Senza ritentativo il
+   * perdente della corsa resta senza stream e il ciclo di vita non parte.
+   */
+  private static final int PROVISION_ATTEMPTS = 5;
+
   private LifecycleSupport() {}
 
   /**
@@ -45,19 +53,43 @@ public final class LifecycleSupport {
   }
 
   /**
-   * Creates streams and the two durable consumers idempotently.
+   * Creates streams and the two durable consumers idempotently, retrying on a startup race.
    *
    * @param connection connected NATS client
    * @throws IOException on transport failure
    * @throws JetStreamApiException when the server rejects the configuration
    */
   public static void provision(Connection connection) throws IOException, JetStreamApiException {
+    for (int attempt = 1; ; attempt++) {
+      try {
+        provisionOnce(connection);
+        return;
+      } catch (IOException | JetStreamApiException cause) {
+        if (attempt >= PROVISION_ATTEMPTS) {
+          throw cause;
+        }
+        pause(300L * attempt);
+      }
+    }
+  }
+
+  private static void provisionOnce(Connection connection)
+      throws IOException, JetStreamApiException {
     JetStreamProvisioner provisioner = new JetStreamProvisioner(connection);
     provisioner.provisionStreams();
     provisioner.provisionConsumer(
         JetStreamTopology.PAYMENT_CONSUMER, JetStreamTopology.ORDER_SUBJECT, MAX_DELIVER);
     provisioner.provisionConsumer(
         JetStreamTopology.FULFILLMENT_CONSUMER, JetStreamTopology.PAYMENT_SUBJECT, MAX_DELIVER);
+  }
+
+  private static void pause(long millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("provisioning retry interrupted", interrupted);
+    }
   }
 
   /**
