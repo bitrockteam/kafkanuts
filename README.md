@@ -4,7 +4,7 @@ Laboratorio riproducibile per progettare, osservare e collaudare la migrazione p
 
 Il progetto mette a confronto i due ecosistemi su un flusso applicativo realistico, mantenendo contratti Avro, schema governance, stream processing, osservabilità e rollback verificabile. Non cerca una sostituzione meccanica topic-per-subject: rende esplicite le differenze di semantica, operatività e failure handling.
 
-> **Stato:** pianificazione e bootstrap completati. L'implementazione parte da [T01](https://github.com/bitrockteam/kafkanuts/issues/1). Nessun componente runtime è ancora dichiarato pronto.
+> **Stato:** lo stack solo NATS JetStream è in piedi e le feature dichiarate sono esercitate da test funzionali contro il sistema reale. Resta aperto T15: runbook e release `v0.1.0`.
 
 ## Obiettivi
 
@@ -71,6 +71,7 @@ Ogni servizio usa il trasporto `nats`, selezionabile tramite configurazione senz
 | `registry` | `apicurio/apicurio-registry:3.0.6` | storage SQL, API `ccompat` su `/apis/ccompat/v7` |
 | `registry-db` | `postgres:16.4-alpine` | credenziali di laboratorio, non riusabili fuori dalla demo |
 | `order-simulator`, `payment-simulator`, `fulfillment-simulator` | build locale | trasporto `nats` |
+| `dashboard` | `nginx:1.27-alpine` | pagina statica su `8090`, proxy di sola lettura verso il monitoring NATS |
 
 Tutte le immagini sono pinnate a versione esplicita; ogni servizio dichiara healthcheck e limiti di CPU e memoria.
 
@@ -89,7 +90,9 @@ Avro resta il formato canonico degli eventi, con Apicurio come registry e compat
 
 ## Corrispondenza con Confluent e Kafka
 
-La dashboard mostra, per ogni feature JetStream realmente in uso, il costrutto Confluent Platform o Kafka corrispondente.
+Con lo stack avviato la dashboard è su <http://localhost:8090>. Mostra, per ogni feature JetStream realmente in uso, il costrutto Confluent Platform o Kafka corrispondente.
+
+La colonna di sinistra è viva: stream, consumer, ack policy, `MaxDeliver`, riconsegne, pending, finestra di deduplica e conteggio della DLQ sono letti dagli endpoint `/varz` e `/jsz` del server NATS, esposti sulla stessa origine da un proxy di sola lettura senza credenziali. La colonna di destra è documentale.
 
 > **La corrispondenza è dichiarata e citata, non misurata.** Con Kafka assente dallo stack non esiste alcun confronto sperimentale. Ogni riga porta la propria fonte documentale e l'etichetta esplicita. Le feature senza equivalente diretto sono dichiarate come tali, in modo conservativo.
 
@@ -103,26 +106,19 @@ Il budget risorse dello stack completo è di circa tre CPU: NATS, PostgreSQL, Ap
 
 ## Requisiti della macchina target
 
-Le soglie iniziali della macchina target, da confermare con T02 e T13, sono:
+Con un solo data plane il fabbisogno è modesto. Lo stack completo dichiara circa **3,25 CPU** e resta sotto i **3 GiB** di memoria assegnata:
 
-| Classe target | CPU logiche | RAM host | RAM disponibile a Docker | Disco libero | Utilizzo previsto |
-|---|---:|---:|---:|---:|---|
-| profili ridotti | 8 | 16 GiB | 10-12 GiB | 60 GiB | `bootstrap` oppure un solo data plane |
-| full minimo | 12 | 32 GiB | almeno 24 GiB | 120 GiB | demo completa senza combinare `ha`, `load` e `tracing` |
-| full raccomandato | 16 | almeno 48 GiB | 30-32 GiB | 150 GiB | sviluppo confortevole, osservabilità e test di failure |
+| Servizio | CPU | Memoria |
+|---|---:|---:|
+| `nats` | 0,5 | 512 MiB |
+| `registry-db` | 0,5 | 512 MiB |
+| `registry` | 1,0 | 1 GiB |
+| tre simulatori | 0,5 ciascuno | 512 MiB ciascuno |
+| `dashboard` | 0,25 | 128 MiB |
 
-Il profilo `full` su una macchina da 32 GiB è una configurazione minima: richiede limiti rigorosi e margine ridotto per editor e altri processi. Per HA o prove di carico è raccomandata la classe superiore.
+Una macchina con 8 CPU logiche, 16 GiB di RAM host e 40 GiB di disco libero esegue lo stack, la build in container e la suite funzionale senza stringere. I profili `test` e `suite` aggiungono un container Maven da 1 CPU e 1 GiB, non concorrente con lo stack.
 
-| Scenario | RAM Docker prevista |
-|---|---:|
-| sviluppo contratti | 2-4 GiB |
-| solo Kafka | 8-11 GiB |
-| solo NATS | 7-10 GiB |
-| migrazione senza osservabilità completa | 14-18 GiB |
-| demo completa | 18-20 GiB |
-| picco massimo consentito | 22-24 GiB |
-
-L'uso ordinario dello stack deve restare entro circa 10 CPU e i test entro 12. `ha`, `load` e `tracing` non vengono attivati insieme per default. Ogni PR che aggiunge un container deve dichiarare healthcheck, limiti, porte e delta misurato con `docker stats`.
+Ogni PR che aggiunge un container deve dichiarare healthcheck, limiti e porte.
 
 ## Strategia di test
 
@@ -200,11 +196,14 @@ L'efficienza deriva dalle stesse regole operative di prima:
 
 Il backlog canonico, con stati e gate, è in [TASKS.md](TASKS.md).
 
+Chiusi di recente:
+
+- **T17** — rimozione fisica di Kafka e Flink, stack solo NATS JetStream con Apicurio, CI minima;
+- **T18** — ciclo di vita su JetStream, suite funzionale contro lo stack reale e dashboard di corrispondenza.
+
 Residuo per `v0.1.0`:
 
-1. **T17** — rimozione fisica di Kafka e Flink, stack solo NATS JetStream con Apicurio, CI minima;
-2. **T18** — feature suite JetStream, test funzionali contro lo stack reale e dashboard di corrispondenza;
-3. **T15** — runbook, sezione *Limitations* e release `v0.1.0`.
+1. **T15** — runbook, sezione *Limitations* e release `v0.1.0`.
 
 I task da T05 a T14 sono chiusi, superati o non esercitati per effetto dell'ADR 0006.
 

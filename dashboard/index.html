@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kafkanuts — feature JetStream in uso</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #262b36; --text: #e6e8ee;
+    --muted: #98a0b3; --ok: #4ec9a0; --warn: #e0b341; --off: #7a8296; --accent: #6aa9ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 24px 28px 12px; border-bottom: 1px solid var(--line); }
+  h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 13px; }
+  main { padding: 20px 28px 60px; max-width: 1180px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .08em;
+       color: var(--muted); font-weight: 600; margin: 32px 0 12px; }
+  .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .card .k { color: var(--muted); font-size: 12px; }
+  .card .v { font-size: 22px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; min-width: 720px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .note { color: var(--muted); font-size: 12.5px; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px;
+         border: 1px solid var(--line); white-space: nowrap; }
+  .tag.eq { color: var(--ok); border-color: #24513f; }
+  .tag.part { color: var(--warn); border-color: #57471c; }
+  .tag.none { color: var(--off); }
+  .live { color: var(--ok); font-variant-numeric: tabular-nums; }
+  .live.off { color: var(--off); }
+  .banner { background: #1d1a14; border: 1px solid #57471c; color: #e8d9a8;
+            border-radius: 8px; padding: 12px 14px; margin: 18px 0 0; font-size: 13px; }
+  a { color: var(--accent); }
+  footer { color: var(--muted); font-size: 12px; padding: 0 28px 40px; max-width: 1180px; }
+  #error { color: #ff8f8f; }
+</style>
+</head>
+<body>
+<header>
+  <h1>kafkanuts — feature JetStream realmente in uso</h1>
+  <div class="sub">Dati letti dal monitoring del server NATS. Kafka e Confluent Platform non sono presenti in questo laboratorio.</div>
+</header>
+<main>
+  <div id="error"></div>
+
+  <h2>Stack</h2>
+  <div class="cards" id="overview"></div>
+
+  <h2>Stream</h2>
+  <div class="wrap"><table id="streams">
+    <thead><tr><th>Stream</th><th>Subject</th><th>Storage</th><th>Retention</th>
+      <th>Finestra dedup</th><th class="num">Messaggi</th><th class="num">Consumer</th></tr></thead>
+    <tbody></tbody></table></div>
+
+  <h2>Consumer</h2>
+  <div class="wrap"><table id="consumers">
+    <thead><tr><th>Durable</th><th>Stream</th><th>Filtro</th><th>Ack</th><th class="num">MaxDeliver</th>
+      <th class="num">Consegnati</th><th class="num">Riconsegnati</th><th class="num">Pending</th></tr></thead>
+    <tbody></tbody></table></div>
+
+  <h2>Corrispondenza con Confluent Platform e Kafka</h2>
+  <div class="banner" id="disclaimer"></div>
+  <div class="wrap" style="margin-top:12px"><table id="mapping">
+    <thead><tr><th>Feature JetStream</th><th>In uso qui</th><th>Costrutto Kafka / Confluent</th>
+      <th>Relazione</th><th>Nota e fonte</th></tr></thead>
+    <tbody></tbody></table></div>
+</main>
+<footer id="footer"></footer>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const txt = (v) => (v === undefined || v === null) ? '—' : String(v);
+const num = (v) => (typeof v === 'number') ? v.toLocaleString('it-IT') : '—';
+
+function secs(ns) {
+  if (!ns) return '—';
+  const s = ns / 1e9;
+  if (s >= 86400) return (s / 86400) + ' g';
+  if (s >= 3600) return (s / 3600) + ' h';
+  if (s >= 60) return (s / 60) + ' min';
+  return s + ' s';
+}
+
+function cell(row, ...values) {
+  for (const v of values) {
+    const td = document.createElement('td');
+    if (typeof v === 'number') td.className = 'num';
+    td.textContent = typeof v === 'number' ? num(v) : txt(v);
+    row.appendChild(td);
+  }
+}
+
+// Evidenze vive: ogni chiave e' una feature della tabella di corrispondenza.
+// Se una feature non e' osservabile dal monitoring resta a null e viene
+// dichiarata come verificata altrove, mai come misurata qui.
+function evidence(jsz, streams, consumers) {
+  const dlq = streams.find((s) => s.name.endsWith('_DLQ'));
+  const dedup = streams.map((s) => s.config && s.config.duplicate_window).filter(Boolean)[0];
+  const subjects = new Set();
+  streams.forEach((s) => (s.config.subjects || []).forEach((x) => subjects.add(x)));
+  return {
+    streams: streams.length ? streams.length + ' stream attivi' : null,
+    subjects: subjects.size ? subjects.size + ' subject, wildcard incluse' : null,
+    durables: consumers.length ? consumers.length + ' consumer durabili' : null,
+    ackPolicy: consumers.length ? 'ack_policy ' + (consumers[0].config.ack_policy || '?') : null,
+    maxDeliver: consumers.length ? 'max_deliver ' + txt(consumers[0].config.max_deliver) : null,
+    dlq: dlq ? num(dlq.state.messages) + ' messaggi in ' + dlq.name : null,
+    dedupWindow: dedup ? 'finestra ' + secs(dedup) : null,
+    pending: consumers.length
+      ? consumers.reduce((a, c) => a + (c.num_pending || 0), 0) + ' messaggi pendenti' : null,
+    storage: streams.length
+      ? (streams[0].config.storage || '?') + ', max_age ' + secs(streams[0].config.max_age) : null,
+    suite: 'verificata dalla suite funzionale, non dal monitoring',
+  };
+}
+
+async function json(path) {
+  const response = await fetch(path, { cache: 'no-store' });
+  if (!response.ok) throw new Error(path + ' → HTTP ' + response.status);
+  return response.json();
+}
+
+async function refresh(mapping) {
+  const [varz, jsz] = await Promise.all([
+    json('/nats/varz'),
+    json('/nats/jsz?streams=1&consumers=1&config=1'),
+  ]);
+  const accounts = jsz.account_details || [];
+  const streams = accounts.flatMap((a) => a.stream_detail || []);
+  const consumers = streams.flatMap((s) => s.consumer_detail || []);
+
+  $('#overview').innerHTML = '';
+  const overview = [
+    ['Server', varz.server_name],
+    ['Versione NATS', varz.version],
+    ['Connessioni', varz.connections],
+    ['Stream', streams.length],
+    ['Consumer', consumers.length],
+    ['Messaggi salvati', jsz.messages],
+    ['Storage su disco', Math.round((jsz.storage || 0) / 1024) + ' KiB'],
+  ];
+  for (const [k, v] of overview) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const key = document.createElement('div');
+    key.className = 'k';
+    key.textContent = k;
+    const value = document.createElement('div');
+    value.className = 'v';
+    value.textContent = typeof v === 'number' ? num(v) : txt(v);
+    card.appendChild(key);
+    card.appendChild(value);
+    $('#overview').appendChild(card);
+  }
+
+  const streamBody = $('#streams tbody');
+  streamBody.innerHTML = '';
+  for (const s of streams) {
+    const row = document.createElement('tr');
+    cell(row, s.name, (s.config.subjects || []).join(', '), s.config.storage,
+      s.config.retention, secs(s.config.duplicate_window),
+      s.state.messages, s.state.consumer_count);
+    streamBody.appendChild(row);
+  }
+
+  const consumerBody = $('#consumers tbody');
+  consumerBody.innerHTML = '';
+  for (const c of consumers) {
+    const row = document.createElement('tr');
+    cell(row, c.name, c.stream_name, c.config.filter_subject, c.config.ack_policy,
+      c.config.max_deliver, (c.delivered || {}).consumer_seq,
+      c.num_redelivered, c.num_pending);
+    consumerBody.appendChild(row);
+  }
+
+  renderMapping(mapping, evidence(jsz, streams, consumers));
+  $('#footer').textContent =
+    'Aggiornato ' + new Date().toLocaleTimeString('it-IT')
+    + ' — sorgente /varz e /jsz del server NATS.';
+}
+
+function renderMapping(mapping, evidences) {
+  const body = $('#mapping tbody');
+  body.innerHTML = '';
+  const labels = { equivalente: 'equivalente', parziale: 'parziale', assente: 'nessun equivalente' };
+  const classes = { equivalente: 'eq', parziale: 'part', assente: 'none' };
+  for (const r of mapping.rows) {
+    const row = document.createElement('tr');
+    const feature = document.createElement('td');
+    feature.textContent = r.feature;
+    row.appendChild(feature);
+
+    const live = document.createElement('td');
+    const value = r.evidence ? evidences[r.evidence] : null;
+    live.className = 'live' + (value ? '' : ' off');
+    live.textContent = value || 'non in uso in questo laboratorio';
+    row.appendChild(live);
+
+    const kafka = document.createElement('td');
+    kafka.textContent = r.kafka;
+    row.appendChild(kafka);
+
+    const relation = document.createElement('td');
+    const tag = document.createElement('span');
+    tag.className = 'tag ' + classes[r.relation];
+    tag.textContent = labels[r.relation];
+    relation.appendChild(tag);
+    row.appendChild(relation);
+
+    const note = document.createElement('td');
+    note.className = 'note';
+    note.textContent = r.note + ' ';
+    const link = document.createElement('a');
+    link.href = mapping.sources[r.source];
+    link.target = '_blank';
+    link.rel = 'noreferrer';
+    link.textContent = 'fonte';
+    note.appendChild(link);
+    row.appendChild(note);
+
+    body.appendChild(row);
+  }
+}
+
+(async () => {
+  try {
+    const mapping = await json('mapping.json');
+    $('#disclaimer').textContent = mapping.disclaimer;
+    await refresh(mapping);
+    setInterval(() => refresh(mapping).catch((e) => {
+      $('#error').textContent = e.message;
+    }), 5000);
+  } catch (e) {
+    $('#error').textContent = 'Dashboard non disponibile: ' + e.message;
+  }
+})();
+</script>
+</body>
+</html>
