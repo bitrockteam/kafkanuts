@@ -153,6 +153,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      schema-registry:
+        condition: service_healthy
       flink-kafka-checkpoint-init:
         condition: service_completed_successfully
     healthcheck:
@@ -181,6 +183,14 @@ services:
         condition: service_healthy
       flink-kafka-checkpoint-init:
         condition: service_completed_successfully
+      schema-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f org.apache.flink.runtime.taskexecutor.TaskManagerRunner >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   flink-kafka-submit:
     profiles: ["t06"]
@@ -198,20 +208,33 @@ services:
       flink-kafka-jobmanager:
         condition: service_healthy
       flink-kafka-taskmanager:
-        condition: service_started
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
       kafka:
         condition: service_healthy
     restart: "no"
 
   t06-gate:
-    image: confluentinc/cp-kafka:7.8.0
+    image: confluentinc/cp-schema-registry:7.8.0
     profiles: ["t06"]
+    user: "0:0"
     cpus: "${T06_GATE_CPUS:-0.25}"
     mem_limit: "${T06_GATE_MEMORY:-256m}"
     entrypoint: ["/workspace/scripts/t06-gate-inner.sh"]
+    depends_on:
+      flink-kafka-jobmanager:
+        condition: service_healthy
+      flink-kafka-taskmanager:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     command: ["pre"]
     volumes:
       - .:/workspace:ro
+      - t06-gate-state:/state
     networks: [flink-kafka-net, kafka-net]
 
   nats:
@@ -379,5 +402,7 @@ networks:
 volumes:
   flink-kafka-checkpoints:
     name: ${T06_CHECKPOINT_VOLUME_NAME:-kafkanuts-flink-kafka-checkpoints}
+  t06-gate-state:
+    name: ${T06_GATE_STATE_VOLUME_NAME:-kafkanuts-t06-gate-state}
   maven-cache:
     name: ${T02_MAVEN_CACHE_VOLUME:-kafkanuts-maven-cache}

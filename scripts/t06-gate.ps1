@@ -19,22 +19,27 @@ function Invoke-ComposeCapture {
 }
 function Assert-Clean {
   if ((Invoke-ComposeCapture @('ps', '-q')).Trim()) { throw 'T06 Compose resources remain' }
-  & docker network inspect $Network *> $null
-  if ($LASTEXITCODE -eq 0) { throw "$Network remains after cleanup" }
+  $saved = $ErrorActionPreference
+  try { $ErrorActionPreference = 'Continue'; & docker network inspect $Network *> $null; $networkExit = $LASTEXITCODE } finally { $ErrorActionPreference = $saved }
+  if ($networkExit -eq 0) { throw "$Network remains after cleanup" }
 }
 $clean = $false
 try {
   Invoke-Compose @('build', 'flink-kafka-submit')
-  Invoke-Compose @('up', '-d', 'kafka', 'flink-kafka-jobmanager', 'flink-kafka-taskmanager')
+  Invoke-Compose @('up', '-d', 'kafka', 'schema-registry', 'flink-kafka-jobmanager', 'flink-kafka-taskmanager')
   Invoke-Compose @('run', '--rm', 'kafka-init')
   Invoke-Compose @('run', '--rm', 'flink-kafka-submit')
   Invoke-Compose @('run', '--rm', 't06-gate', 'pre')
+  $watcher = (Invoke-ComposeCapture @('run', '-d', 't06-gate', 'watch')).Trim()
+  Start-Sleep -Seconds 3
   Invoke-Compose @('restart', 'flink-kafka-taskmanager')
+  $watchStatus = (& docker wait $watcher | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0 -or $watchStatus -ne '0') { throw "restart transition probe failed: $watchStatus" }
   Invoke-Compose @('run', '--rm', 't06-gate', 'recovery')
   Invoke-Compose @('down', '--volumes', '--remove-orphans')
   Assert-Clean
   $clean = $true
-  [ordered]@{task='T06';result='PASS';processing=@{status='PASS';evidence='Flink Kafka consumed t06-events and emitted t06-parity-output'};checkpoint=@{status='PASS';evidence='completed checkpoints verified before and after TaskManager restart'};duplicate_recovery=@{status='PASS';evidence='duplicate emitted once before and after restart'};cluster=@{jobmanager='flink-kafka-jobmanager';taskmanager='flink-kafka-taskmanager';network=$Network;checkpoint_volume='flink-kafka-checkpoints'};cleanup=@{status='PASS';evidence='Compose empty and effective network absent'}} | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $Report
+  [ordered]@{task='T06';result='PASS';processing=@{status='PASS';evidence='canonical Avro EventEnvelope consumed from t06-events and emitted to t06-parity-output'};checkpoint=@{status='PASS';evidence='state-under-test checkpoint completed before restart and strictly newer checkpoint after observed job modification transition'};duplicate_recovery=@{status='PASS';evidence='complete bounded Avro output set contains each eventId exactly once before and after restart'};avro=@{status='PASS';evidence='Confluent framing and Schema Registry'};cluster=@{jobmanager='flink-kafka-jobmanager';taskmanager='flink-kafka-taskmanager';network=$Network;checkpoint_volume='flink-kafka-checkpoints'};cleanup=@{status='PASS';evidence='Compose empty and effective network absent'}} | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $Report
   Get-Content $Report
 } finally {
   if (-not $clean) { try { Invoke-Compose @('down', '--volumes', '--remove-orphans') } catch { Write-Error $_ } }
