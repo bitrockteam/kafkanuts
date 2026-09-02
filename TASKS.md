@@ -63,10 +63,10 @@ Nessuna migrazione viene eseguita. La corrispondenza con Confluent Platform e Ka
   - Le righe senza equivalente diretto vanno dichiarate come tali, in modo conservativo.
   - Gate: `docs/gates/t18-gate.json` machine-readable più la dashboard raggiungibile con dati reali.
 
-- [ ] **T15 — Documentazione finale e release v0.1.0** (`READY` al merge di T18)
+- [ ] **T15 — Documentazione finale e release v0.1.0** (`PR_OPEN`)
   - Runbook del solo percorso dimostrativo, troubleshooting essenziale e cleanup.
   - Sezione *Limitations* obbligatoria in `README.md` e nelle release notes, con l'elenco completo delle voci `NOT_TESTED` e `NOT_EXERCISED`.
-  - Gate: clone pulito e riproduzione completa da un secondo ambiente.
+  - Gate: `docs/gates/t15-gate.json`, clone pulito e riproduzione completa.
 
 ## Ordine
 
