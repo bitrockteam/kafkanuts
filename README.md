@@ -20,7 +20,7 @@ La demo deve permettere a un operatore di:
 8. verificare ack, redelivery, deduplicazione, replay, DLQ e persistenza JetStream;
 9. migrare un servizio alla volta con shadow traffic, parity check, cutover e rollback;
 10. osservare metriche, log e trace correlati;
-11. produrre test, immagini, JAR, SBOM e report di sicurezza versionati;
+11. produrre test, immagini e JAR versionati; SBOM e report di sicurezza automatici sono rimandati a `v0.2.0`;
 12. esportare misure tecniche ripetibili utilizzabili da un modello di costo esterno, senza incorporare prezzi o dati cliente nel repository.
 
 Il risultato atteso non è soltanto uno stack che si avvia, ma una migrazione dimostrabile attraverso test e report ripetibili.
@@ -170,7 +170,7 @@ Il passaggio non avviene come big bang. Ogni servizio attraversa fasi controllat
 | M3 | Kafka + NATS | Kafka | NATS | Apicurio in validazione | mapping schema verificato |
 | M4 | Kafka + NATS | NATS per un canary | Kafka | Apicurio | SLO e failure test verdi |
 | M5 | NATS + safety feed Kafka | NATS progressivo | Kafka audit | Apicurio | tutti i domini validati |
-| M6 | NATS | NATS | Kafka spento dopo soak | Apicurio | replay e rollback provati |
+| M6 | NATS | NATS | Kafka spento dopo periodo di osservazione | Apicurio | replay e rollback provati |
 
 Ogni fase definisce precondizioni, report, soglia di promozione e rollback. Il controller può fermare la demo a qualunque fase. Il passaggio viene ripetuto separatamente per ordini, pagamenti ed evasione.
 
@@ -256,48 +256,47 @@ L'uso ordinario dello stack deve restare entro circa 10 CPU e i test entro 12. `
 
 ## Strategia di test
 
-La qualità viene verificata a più livelli:
+Il perimetro di verifica della release `v0.1.0` è ridotto e normato da [docs/QA-SCOPE.md](docs/QA-SCOPE.md), approvato in [ADR 0005](docs/adr/0005-perimetro-qa-ridotto.md). La release dimostra **correttezza della migrazione**, non idoneità alla produzione.
+
+Nel perimetro:
 
 - unit test per dominio, codec, mapping e adapter;
-- contract test Avro e cross-registry;
+- contract test Avro e cross-registry, compatibilità positiva e negativa;
 - integration test dei due data plane;
-- functional test delle fasi M0-M6;
-- test di restart, rete interrotta, retry, replay e DLQ;
+- functional test delle fasi M0-M6 sui criteri di correttezza;
+- tre scenari di fallimento deterministici, più replay e DLQ;
 - checkpoint/recovery per entrambi i Flink;
-- parity test su conteggi, stati e checksum;
-- test di schema evolution e incompatibilità;
-- smoke, burst e soak con soglie dichiarate;
-- smoke di portabilità Windows, Linux e macOS.
+- parity test su conteggi, stati terminali e checksum normalizzati.
 
-Le suite producono report JUnit e JSON/Markdown archiviabili da CI. I test di carico servono a confrontare e trovare limiti della demo, non a formulare benchmark commerciali universali.
+Fuori perimetro, stato `NOT_TESTED` con motivazione nel report: percentili di latenza, throughput, burst, soak, dataset di capacità, RTO/RPO misurati, profilo NATS HA, interruzione di rete, component test Testcontainers e CI su runner Windows e macOS.
+
+I gate producono un report JSON archiviabile. **Nessun dato di prestazione, capacità, disponibilità o costo può essere derivato da questa release**: i requisiti corrispondenti non sono stati esercitati e non sono presentati come soddisfatti.
 
 ## CI/CD, sicurezza e artefatti
 
-Le pull request introdurranno progressivamente:
+Nel perimetro di `v0.1.0`:
 
 - build Maven e test in container;
 - validazione e smoke Docker Compose;
 - Checkstyle, formatter e SpotBugs;
-- CodeQL;
-- Trivy per filesystem, configurazione e immagini;
-- Gitleaks;
-- GitHub Dependency Review e Dependabot;
-- CycloneDX SBOM;
+- ricerca di segreti nel repository;
+- Dependabot;
 - immagini non-root e privilegi/capability minimi;
 - GitHub Actions pinnate a commit SHA con permessi minimali;
-- JAR e immagini OCI versionate in GHCR;
-- provenance, attestazioni e firma quando l'identità OIDC è pronta.
+- JAR e immagini OCI versionate.
 
-Vulnerabilità High o Critical bloccano merge e release, salvo eccezione temporanea con owner, mitigazione e scadenza documentati.
+Rimandati a `v0.2.0`, stato `NOT_TESTED`: CodeQL, Trivy, GitHub Dependency Review, CycloneDX SBOM, GHCR, provenance, attestazioni e firma.
+
+Un segreto committato blocca merge e release senza eccezioni. Per le vulnerabilità note, la release dichiara che l'analisi automatica non è stata eseguita, invece di dichiarare l'assenza di vulnerabilità.
 
 ## Contratto operativo Git
 
 Git e GitHub sono la fonte durevole di verità. Lo stato di finestre, chat e terminali è soltanto diagnostico.
 
-- **Luna** (`gpt-5.6-luna`, reasoning `medium`) implementa un task alla volta, esegue i gate, committa, pusha il branch e prepara l'handoff; non apre PR e non fa merge.
-- **Watcher Herdr/PowerShell** mantiene liveness, osserva GitHub e può inviare continuazioni; non modifica codice, commit, branch o architettura.
-- **Codex reviewer** (`gpt-5.6`, alias di `gpt-5.6-sol`, reasoning `medium`) concentra i token su architettura, sicurezza, review e merge; legge diff, check e commenti GitHub invece delle finestre terminale.
+- **Esecutore singolo**: implementa un task alla volta, esegue i gate, committa, pusha il branch, apre la PR, svolge la review scritta e fa squash merge.
 - **GitHub** conserva backlog, issue, branch, PR, check, review, decisioni e release.
+
+Dal 2026-09-02 il ciclo a tre attori (esecutore Luna su Pi, watcher PowerShell, reviewer Codex/Sol) è ritirato. Il contratto Git resta invariato: cambia chi esegue i passi, non i passi.
 
 `main` richiede pull request, squash merge, cronologia lineare e conversazioni risolte; force push e cancellazione sono bloccati. I required checks vengono aggiunti al ruleset quando i relativi workflow esistono, evitando una protezione impossibile da soddisfare durante il bootstrap.
 
@@ -315,43 +314,27 @@ L'approvazione del piano non autorizza cambiamenti impliciti al suo perimetro. G
 
 Una richiesta di chiarimento ordinaria non interrompe il flusso: gli agenti applicano le decisioni già registrate in piano, ADR, issue e criteri di accettazione. Le richieste di approvazione imposte dalla piattaforma o dall'ambiente restano comunque necessarie quando compaiono.
 
-## Supervisione Codex ed efficienza token
+## Review a esecutore singolo
 
-Il flusso usa due livelli deliberatamente diversi:
+Autore e reviewer coincidono, quindi la review non può restare implicita: è scritta nel corpo della pull request e copre scope, correttezza architetturale, migrazione, sicurezza, concorrenza, failure mode, limiti risorse e coerenza fra i `PASS` dichiarati e ciò che il gate ha davvero eseguito.
 
-| Ruolo | Modello previsto | Responsabilità |
-|---|---|---|
-| esecutore | `gpt-5.6-luna`, reasoning `medium` | codice del singolo task, test, documentazione, commit, push del branch e handoff verificabile |
-| reviewer/merge steward | `gpt-5.6` (`gpt-5.6-sol`), reasoning `medium` | babysitting operativo, apertura e gestione PR, code review, decisioni ad alto rischio e squash merge su `main` |
+Vale la **regola di astensione**: se la review individua un problema di architettura, sicurezza, semantica o budget, il task diventa `BLOCKED` nell'issue e torna allo sponsor umano. L'esecutore non si auto-assolve su una decisione che non gli compete.
 
-La separazione segue il posizionamento ufficiale dei modelli: [GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna) per workload efficienti e ad alto volume; [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) per ragionamento e coding complessi.
-
-Il babysitting di Codex non duplica l'implementazione di Luna. Il ciclo è:
-
-1. Luna seleziona un solo task `READY`, lavora sul branch dedicato, esegue i gate, pusha i commit e pubblica un handoff `HANDOFF_READY` con evidenze riproducibili.
-2. Codex/Sol verifica branch e handoff, apre la PR con il template completo e prende in carico stato, check, diff e commenti; non ricostruisce il lavoro leggendo la cronologia delle chat o osservando continuamente il terminale.
-3. Codex concentra la review su architettura, migrazione, sicurezza, concorrenza, failure mode, compatibilità, limiti risorse e qualità dei test.
-4. Se trova problemi, lascia richieste mirate e Luna corregge lo stesso branch della PR senza iniziare un altro task.
-5. Quando criteri di accettazione, conversazioni e check sono soddisfatti, Codex esegue lo squash merge, verifica `main` e rende disponibile il task successivo.
-
-L'efficienza token deriva da regole operative precise:
+L'efficienza deriva dalle stesse regole operative di prima:
 
 - Git e GitHub conservano lo stato durevole; le chat sono contesto transitorio;
 - un task e una PR alla volta evitano lavoro duplicato e context switching;
-- Luna gestisce il volume implementativo, Codex usa il modello reviewer soltanto nei punti a maggiore impatto;
 - log completi non vengono riversati nel prompt: PR e report conservano sintesi, comandi, risultati e link agli artefatti;
-- Codex non riscrive boilerplate già assegnato a Luna e non approva claim che i test non dimostrano;
+- non si approvano claim che i test non dimostrano;
 - ambiguità che cambiano architettura, sicurezza, semantica o costo risorse diventano decisioni tracciate, non tentativi ripetuti.
 
-### Perché la PR è il confine di review
+### Perché la PR resta il confine di review
 
-- **Sol rivede un artefatto stabile, non un terminale.** Diff, commit, report e check evitano scraping di finestre, output troncati e ricostruzioni fragili della sessione Luna.
-- **Lo scope viene controllato prima della review semantica.** Sol confronta l'elenco dei file modificati con task e prerequisiti autorizzati. Se la PR tocca file fuori scope senza una motivazione già approvata, la blocca e la rimanda a Luna prima di spendere token sul contenuto.
-- **Il branch isola il lavoro non approvato.** Finché la PR non viene unita, `main` e gli altri sviluppatori non ricevono il cambiamento. Chiudere PR e branch elimina l'impatto sul prodotto, anche se il tempo e il calcolo già consumati non sono recuperabili.
-- **GitHub conserva il verbale.** Issue, commit, handoff, check, commenti, decisioni e merge consentono di ricostruire chi ha fatto cosa, quali prove sono passate e perché il cambiamento è stato accettato.
-- **I gate meccanici precedono il giudizio.** Luna esegue i test richiesti prima di `HANDOFF_READY`; CI ripete i controlli disponibili. Sol avvia la review semantica soltanto quando risultati e failure sono visibili, concentrando il modello sui punti che richiedono giudizio.
-
-Il modello reviewer può essere cambiato solo con una decisione esplicita e registrata; non viene sostituito silenziosamente durante un task o una review.
+- **La review guarda un artefatto stabile, non un terminale.** Diff, commit, report e check evitano scraping di finestre, output troncati e ricostruzioni fragili di sessione.
+- **Lo scope viene controllato prima della review semantica.** L'elenco dei file modificati va confrontato con task e prerequisiti autorizzati; una PR che tocca file fuori scope senza motivazione approvata si ferma lì.
+- **Il branch isola il lavoro non approvato.** Finché la PR non viene unita, `main` non riceve il cambiamento.
+- **GitHub conserva il verbale.** Issue, commit, check, commenti, decisioni e merge consentono di ricostruire quali prove sono passate e perché il cambiamento è stato accettato.
+- **I gate meccanici precedono il giudizio.** I test richiesti girano prima della PR; CI ripete i controlli disponibili. La review semantica parte quando risultati e failure sono visibili.
 
 ## Roadmap
 
@@ -363,8 +346,8 @@ Il lavoro è diviso in task piccoli. La numerazione conserva il collegamento con
 4. **T05-T07:** baseline Kafka, Flink Kafka e suite JetStream;
 5. **T08-T09:** Apicurio, Avro NATS e migrazione registry;
 6. **T11:** dual run, cutover e rollback;
-7. **T12-T13:** osservabilità, failure, replay, evolution e performance;
-8. **T14-T15:** hardening, SBOM, attestazioni, documentazione e release `v0.1.0`.
+7. **T12-T13:** osservabilità Prometheus/Grafana, failure e replay nel perimetro ridotto;
+8. **T14-T15:** hardening essenziale, documentazione e release `v0.1.0`.
 
 Il backlog canonico, con dipendenze e gate, è in [TASKS.md](TASKS.md). Le issue [T01-T15](https://github.com/bitrockteam/kafkanuts/issues) ne costituiscono l'indice operativo su GitHub.
 
@@ -373,8 +356,9 @@ Il backlog canonico, con dipendenze e gate, è in [TASKS.md](TASKS.md). Le issue
 - [Piano esecutivo completo](docs/PLAN.md)
 - [Architettura e reti](docs/ARCHITECTURE.md)
 - [Budget risorse](docs/RESOURCE-BUDGET.md)
-- [Handoff per Luna](docs/EXECUTION-HANDOFF.md)
-- [Contratto del watcher Herdr](docs/WATCHER-CONTRACT.md)
+- [Perimetro di verifica v0.1.0](docs/QA-SCOPE.md)
+- [Handoff esecutivo](docs/EXECUTION-HANDOFF.md)
+- [Contratto del watcher Herdr, storico](docs/WATCHER-CONTRACT.md)
 - [Regole per agenti e contributori](AGENTS.md)
 - [Linee guida di contribuzione](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

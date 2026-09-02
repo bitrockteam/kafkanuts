@@ -1,77 +1,61 @@
-# Handoff esecutivo per Luna
+# Handoff esecutivo
 
 ## Mandato
 
-Implementare `kafkanuts` in incrementi revisionabili seguendo `TASKS.md`. Modello previsto: `gpt-5.6-luna`, reasoning `medium`. L'esecutore produce codice, test, documentazione, commit, branch remoto e handoff; non apre o gestisce PR, non fa merge e non decide unilateralmente cambi architetturali. Codex/Sol prende in carico PR, code review e merge su `main`.
+Implementare `kafkanuts` in incrementi revisionabili seguendo `TASKS.md`, entro il perimetro di verifica di `docs/QA-SCOPE.md`.
 
-## Prompt di avvio consigliato
+Dal 2026-09-02 il modello è a **esecutore singolo**: lo stesso agente implementa, apre la pull request, svolge la review scritta, unisce su `main` e seleziona il task successivo. Il ciclo precedente a tre attori (esecutore Luna su Pi, watcher PowerShell, reviewer Codex/Sol su Herdr) è ritirato; la sua documentazione operativa resta nel workspace `nats-kafka` come storia, non come contratto.
 
-> Lavora come esecutore del repository kafkanuts. Git e GitHub sono l'unica fonte di verità. Leggi integralmente AGENTS.md, TASKS.md, docs/PLAN.md e gli ADR applicabili. Sincronizza main, seleziona il primo task READY con prerequisiti soddisfatti e lavora soltanto su quello in un branch dedicato. Tutta la build e i test devono essere eseguibili tramite Docker Compose su Windows, Linux e macOS. Crea commit Conventional Commits, pusha il branch e pubblica nell'issue un handoff HANDOFF_READY completo di evidenze; non aprire PR e non fare merge. Se incontri una decisione architetturale, una richiesta di permesso o lo stesso errore per tre tentativi fondati, marca il task BLOCKED e descrivi esattamente il punto nell'issue prima di fermarti.
-
-Questo prompt non sostituisce i documenti del repository: li indica come contratto stabile.
+Il contratto Git di `docs/adr/0003-git-contract.md` resta valido in tutto ciò che riguarda branch, commit, issue, pull request e `TASKS.md`. Cambia soltanto chi esegue quali passi.
 
 ## Ciclo di un task
 
 1. `git fetch --all --prune` e verifica working tree pulito.
-2. Leggi `main:TASKS.md` e l'issue del task.
-3. Marca il task `IN_PROGRESS` nel branch o usa l'assegnazione/label GitHub; non fare commit diretto su main.
-4. Crea `feat/TNN-slug` (o tipo appropriato) da `origin/main`.
-5. Scrivi prima criteri/test quando chiariscono la semantica.
-6. Implementa lo scope minimo completo.
-7. Esegui gate locali containerizzati e conserva output sintetico.
-8. Riesamina diff, segreti, dipendenze, limiti risorse e documentazione.
-9. Aggiorna `TASKS.md` a `HANDOFF_READY` nel branch.
-10. Commit e push del branch.
-11. Inserisci nell'issue un commento finale di handoff con commit HEAD e stato dei gate.
-12. Fermati senza aprire PR. Codex/Sol prende in carico apertura, review e merge; il watcher non deve spingere Luna al task successivo finché la PR non è stata unita o chiusa.
+2. Leggi `main:TASKS.md`, l'issue del task e `docs/QA-SCOPE.md`.
+3. Crea `feat/TNN-slug` (o tipo appropriato) da `origin/main`.
+4. Marca il task `IN_PROGRESS` nel branch; nessun commit diretto su `main`.
+5. Implementa lo scope minimo completo.
+6. Esegui i gate containerizzati previsti dal task e scrivi `reports/tNN-gate.json`.
+7. Registra `NOT_TESTED` con motivazione per ogni requisito fuori perimetro. Un requisito non esercitato non diventa mai `PASS`.
+8. Aggiorna documentazione e `TASKS.md`, commit Conventional Commits, push del branch.
+9. Apri la pull request con il template compilato e commenta l'issue con commit HEAD ed esito dei gate.
+10. Svolgi la review leggendo il diff, non il ricordo dell'implementazione. Scrivi l'esito nel corpo della PR.
+11. Porta il task a `DONE` sullo stesso branch, poi squash merge, sincronizza `main`, verifica il commit risultante.
+12. Seleziona il task `READY` successivo.
 
-## Pacchetto minimo di handoff a Codex/Sol
+## Review a esecutore singolo
 
-- task e issue;
-- risultato ottenuto;
-- file/componenti modificati;
-- comandi esatti eseguiti;
-- esito test e report;
-- delta CPU/RAM se cambia lo stack;
-- rischi, limiti e debito introdotto;
-- istruzioni di rollback;
-- commit HEAD;
-- eventuali decisioni richieste al reviewer.
+Autore e reviewer coincidono, quindi la review non può essere implicita. Deve essere scritta nel corpo della PR e coprire almeno:
 
-## Confini per l'efficienza dei token
+- file modificati confrontati con lo scope dichiarato del task;
+- correttezza architetturale, migrazione, sicurezza, concorrenza e failure mode;
+- coerenza fra i `PASS` del report e ciò che il gate ha davvero eseguito;
+- segreti, pin delle immagini, utente non-root e limiti risorse dei nuovi servizi;
+- allineamento fra `TASKS.md`, issue e stato reale.
 
-- non rileggere l'intera cronologia delle chat: leggere repository, issue e PR;
-- non chiedere a Codex di generare boilerplate già assegnato a Luna;
-- non accumulare più task in una PR;
-- preferire output sintetici e allegati/report rispetto a log completi nei commenti;
-- salvare decisioni durevoli in ADR, non ripeterle a ogni turno;
-- dopo feedback di review, modificare solo i punti richiesti e riportare test mirati più regressione necessaria.
+**Regola di astensione**: se la review individua un problema di architettura, sicurezza, semantica o budget, il task va marcato `BLOCKED` nell'issue e portato allo sponsor umano. L'esecutore singolo non si auto-assolve su una decisione che non gli compete.
 
 ## Quando fermarsi
 
-Fermarsi e rendere visibile `BLOCKED` se:
+Marcare `BLOCKED` e rendere visibile il blocco se:
 
-- manca un permesso/account/segreto necessario;
+- manca un permesso, un account o un segreto necessario;
 - due alternative cambiano una decisione architetturale o una garanzia semantica;
 - un'azione può perdere dati o modificare risorse esterne non previste;
 - lo stesso blocco persiste dopo tre tentativi ragionati;
 - il budget risorse non può essere rispettato senza cambiare scope;
-- un controllo segnala una vulnerabilità High/Critical senza fix sicuro nello scope.
+- un gate non può passare se non indebolendo una garanzia dichiarata al lettore.
 
 Non fermarsi per un normale errore di compilazione o test prima di averne investigato causa e alternative in-scope.
 
-## PR, review e merge
-
-Codex/Sol verifica branch e handoff, apre la PR usando il template, aggiorna lo stato a `PR_OPEN` e legge diff e check invece del terminale dell'esecutore. Una volta risolti commenti e gate, Codex effettua squash merge su `main`, verifica il commit risultante, porta il task a `DONE` se non già incluso e rende `READY` il task successivo. Se l'account GitHub è lo stesso per autore e reviewer, l'approvazione formale può non essere conteggiata: il ruleset iniziale richiede PR e conversazioni risolte senza imporre un'approvazione impossibile. Quando esiste un reviewer distinto/team, elevare il requisito ad almeno una approval.
-
 ## Ripresa dopo interruzione
 
-La sequenza è sempre:
+Git e GitHub sono la fonte durevole. La sequenza è sempre:
 
 1. `git status` e branch corrente;
 2. `git log --oneline --decorate -10`;
-3. issue/PR aperte del repository;
-4. check e review della PR assegnata;
+3. issue e pull request aperte del repository;
+4. check e review della PR corrente;
 5. `TASKS.md` su `origin/main`.
 
 Se terminale e Git divergono, prevale Git. Modifiche non committate vanno ispezionate e salvate in un commit del branch corretto prima di proseguire; non cancellarle automaticamente.

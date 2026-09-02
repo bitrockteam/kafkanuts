@@ -262,34 +262,41 @@ I limiti dettagliati e i criteri di autotuning sono in [RESOURCE-BUDGET.md](RESO
 
 ## 12. Strategia di test
 
-### Livelli
+> Ridotta il 2026-09-02 per la release v0.1.0. Il perimetro normativo è `docs/QA-SCOPE.md`; motivazione e autorità in `docs/adr/0005-perimetro-qa-ridotto.md`. Questa sezione descrive l'ambizione originale del piano e resta il riferimento per v0.2.0.
+
+### Livelli mantenuti in v0.1.0
 
 - unit test per dominio, codec Avro, mapping e adapter;
-- component test con Testcontainers dove utile, eseguito dentro container con accesso controllato al daemon;
 - integration test Compose per ciascun data plane;
 - contract test per schema compatibility e serializer cross-registry;
-- functional test delle fasi M0-M6;
-- chaos/failure test deterministici;
-- performance smoke e soak breve con soglie relative, non marketing benchmark;
-- cross-platform smoke su runner Linux, Windows e macOS per lint/config/client commands; lo stack Linux-container completo può essere validato su Linux CI e Docker Desktop locale.
+- functional test delle fasi M0-M6 limitato ai criteri di correttezza;
+- tre scenari di fallimento deterministici più un replay;
+- smoke Linux in CI, con percorso locale Docker Desktop documentato per Windows e macOS.
 
-### Matrice minima
+### Livelli rimandati a v0.2.0
+
+- component test con Testcontainers;
+- chaos test e matrice failure esaustiva;
+- performance smoke, burst e soak;
+- cross-platform smoke su runner Windows e macOS.
+
+### Matrice minima v0.1.0
 
 - publish/consume valido e schema incompatibile;
 - duplicate publish e duplicate delivery;
-- producer/consumer/server/registry restart;
-- network interruption e recovery;
+- restart di broker, server NATS e job Flink;
 - replay da offset/sequence/time;
-- Kafka lag vs NATS pending;
-- Flink checkpoint/restart per entrambi i cluster;
 - parity su conteggi, stati finali e checksum normalizzati;
 - cutover e rollback di ciascun simulatore;
-- volume baseline, burst e soak;
-- NATS single-node e profilo HA.
+- NATS single-node.
 
-Tutti i test devono produrre report JUnit e, per le demo, JSON/Markdown archiviabili in CI.
+### Fuori matrice, stato `NOT_TESTED`
 
-Le prove di capacità aggiungono un dataset tabellare con configurazione del workload, consumo CPU/RAM/storage, throughput, percentili e tempi di recovery. Il dataset contiene misure tecniche, non prezzi o risparmi: il modello economico applica successivamente tariffe e condizioni contrattuali con data e fonte proprie.
+Network interruption e recovery, Kafka lag vs NATS pending come gate, volume baseline, burst, soak e profilo NATS HA. Ogni voce è registrata come `NOT_TESTED` con motivazione nel report del gate corrispondente e nella sezione *Limitations* della release.
+
+Tutti i gate producono un report JSON archiviabile. Il report JUnit per le demo è rimosso; resta il report JUnit prodotto dai test Maven in CI.
+
+Nessun dataset di capacità è prodotto in v0.1.0: il modello economico esterno non riceve input tecnici da questa release. Le misure di capacità richiedono una campagna approvata separatamente.
 
 ## 13. CI/CD e artefatti
 
@@ -378,8 +385,9 @@ Per ogni run il report deve distinguere almeno:
 - eventi logici unici dopo idempotenza;
 - outcome terminali e messaggi in DLQ;
 - record fuori ordine rispetto alla sequenza dell'aggregato;
-- latenza end-to-end p50, p95 e p99;
-- checkpoint/restart e durata del rollback.
+- checkpoint/restart ed esito del rollback.
+
+In v0.1.0 latenza end-to-end p50/p95/p99 e durata misurata del rollback sono `NOT_TESTED`.
 
 I criteri minimi sono:
 
@@ -388,9 +396,9 @@ I criteri minimi sono:
 - duplicati di consegna sempre visibili nel report e un solo effetto logico quando il flusso dichiara idempotenza;
 - ordinamento per aggregato verificato soltanto per i flussi che lo richiedono e lo dichiarano;
 - messaggi conservati leggibili prima e dopo cambio registry e rollback;
-- latenza, throughput e RTO confrontati con soglie fissate prima del run sulla baseline M0, non scelte dopo aver visto il risultato.
+- latenza, throughput e RTO: `NOT_TESTED` in v0.1.0. Nessuna soglia prestazionale è dichiarata, quindi nessuna può essere presentata come rispettata.
 
-RPO, RTO e soglie prestazionali non vengono inventati come valori universali del laboratorio: il profilo baseline propone valori iniziali, ma ogni scenario registra il contratto usato per promuovere o bloccare la fase.
+RPO, RTO e soglie prestazionali non vengono inventati come valori universali del laboratorio. In v0.1.0 non vengono nemmeno misurati: ogni scenario registra il contratto di correttezza usato per promuovere o bloccare la fase, e dichiara `NOT_TESTED` la parte prestazionale.
 
 ### Formato dell'evidenza
 
