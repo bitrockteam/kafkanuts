@@ -2,6 +2,8 @@
 
 Documento normativo. Prevale su `docs/PLAN.md` sezione 12 e sui criteri prestazionali della sezione 16. Motivazione e autorità in `docs/adr/0005-perimetro-qa-ridotto.md`.
 
+**Aggiornato dall'ADR 0006**: Kafka e Flink sono rimossi dal repository. Ogni verifica che li richiedeva in piedi — end-to-end Kafka, round-trip cross-registry, mapping schema ID, parità, cutover, rollback, checkpoint Flink — passa a `NOT_EXERCISED`. Restano nel perimetro unit e contract test Avro, la feature suite JetStream contro lo stack reale, e i modi di fallimento dichiarati.
+
 ## Regola generale
 
 Tre stati ammessi per un requisito di verifica:

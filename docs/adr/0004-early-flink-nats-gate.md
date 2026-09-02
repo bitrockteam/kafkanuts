@@ -1,5 +1,8 @@
 # ADR 0004: anticipare il gate Flink/NATS
 
+> **Superata dall'[ADR 0006](0006-solo-nats-jetstream.md) il 2026-09-02.** Flink esce dal perimetro del progetto e i relativi cluster e moduli sono stati rimossi dal repository. Questa ADR resta come registrazione della decisione precedente.
+
+
 - Stato: accettato
 - Data: 2026-09-01
 

@@ -19,8 +19,6 @@
     <module>modules/fulfillment-simulator</module>
     <module>modules/transport-core</module>
     <module>modules/event-contracts</module>
-    <module>modules/flink-nats-spike</module>
-    <module>modules/kafka-baseline</module>
   </modules>
   <properties>
     <java.version>21</java.version>

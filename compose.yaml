@@ -37,153 +37,90 @@ services:
       retries: 3
       start_period: 10s
 
-  kafka:
-    image: confluentinc/cp-kafka:7.8.0
-    profiles: ["kafka"]
-    hostname: kafka
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
-      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,INTERNAL://kafka:29092,CONTROLLER://kafka:29093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,INTERNAL://kafka:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
-      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
-    cpus: "${T05_KAFKA_CPUS:-1.0}"
-    mem_limit: "${T05_KAFKA_MEMORY:-1g}"
-    networks: [kafka-net]
-    healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server kafka:9092 >/dev/null 2>&1"]
-      interval: 10s
-      timeout: 10s
-      retries: 12
-      start_period: 30s
-
-  schema-registry:
-    image: confluentinc/cp-schema-registry:7.8.0
-    profiles: ["kafka"]
-    environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
-    depends_on:
-      kafka:
-        condition: service_healthy
-    cpus: "${T05_REGISTRY_CPUS:-0.5}"
-    mem_limit: "${T05_REGISTRY_MEMORY:-512m}"
-    networks: [kafka-net]
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/subjects >/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
-
-  ksqldb:
-    image: confluentinc/cp-ksqldb-server:7.8.0
-    profiles: ["kafka"]
-    environment:
-      KSQL_BOOTSTRAP_SERVERS: kafka:29092
-      KSQL_HOST_NAME: ksqldb
-      KSQL_LISTENERS: http://0.0.0.0:8088
-      KSQL_KSQL_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      KSQL_KSQL_SERVICE_ID: kafkanuts_ksqldb_
-      KSQL_KSQL_SINK_REPARTITION_REQUIRED: "false"
-    depends_on:
-      schema-registry:
-        condition: service_healthy
-    cpus: "${T05_KSQL_CPUS:-0.5}"
-    mem_limit: "${T05_KSQL_MEMORY:-1g}"
-    networks: [kafka-net]
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8088/info >/dev/null"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 45s
-
-  kafka-init:
-    image: confluentinc/cp-kafka:7.8.0
-    profiles: ["kafka"]
-    command: ["/bin/bash", "-ec", "for topic in orders payments payment-counts fulfillments; do kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic $$topic --partitions 1 --replication-factor 1; done"]
-    depends_on:
-      kafka:
-        condition: service_healthy
-    cpus: "${T05_KAFKA_INIT_CPUS:-0.25}"
-    mem_limit: "${T05_KAFKA_INIT_MEMORY:-256m}"
-    volumes:
-      - .:/workspace:ro
-    networks: [kafka-net]
-    restart: "no"
-
   nats:
     image: nats:2.11.8-alpine
-    profiles: ["t10"]
-    command: ["--jetstream", "--http_port", "8222"]
-    cpus: "${T10_NATS_CPUS:-0.25}"
-    mem_limit: "${T10_NATS_MEMORY:-256m}"
-    networks: [flink-nats-net]
+    hostname: nats
+    command:
+      - "--jetstream"
+      - "--store_dir=/data"
+      - "--http_port=8222"
+      - "--server_name=kafkanuts-nats"
+    cpus: "${T17_NATS_CPUS:-0.5}"
+    mem_limit: "${T17_NATS_MEMORY:-512m}"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    networks: [nats-net]
+    volumes:
+      - nats-data:/data
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
 
-  flink-nats-jobmanager:
-    image: flink:1.20.2-scala_2.12-java17
-    profiles: ["t10"]
-    command: ["jobmanager"]
-    cpus: "${T10_FLINK_JM_CPUS:-0.5}"
-    mem_limit: "${T10_FLINK_JM_MEMORY:-2g}"
+  registry-db:
+    image: postgres:16.4-alpine
+    hostname: registry-db
     environment:
-      - JOB_MANAGER_RPC_ADDRESS=flink-nats-jobmanager
-      - "FLINK_PROPERTIES=jobmanager.memory.process.size: 1600m"
-    networks: [flink-nats-net]
+      POSTGRES_DB: "${T17_POSTGRES_DB:-apicurio}"
+      POSTGRES_USER: "${T17_POSTGRES_USER:-apicurio}"
+      POSTGRES_PASSWORD: "${T17_POSTGRES_PASSWORD:-apicurio}"
+    cpus: "${T17_POSTGRES_CPUS:-0.5}"
+    mem_limit: "${T17_POSTGRES_MEMORY:-512m}"
+    networks: [nats-net]
+    volumes:
+      - registry-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/overview"]
-      interval: 15s
+      test: ["CMD-SHELL", "pg_isready -U ${T17_POSTGRES_USER:-apicurio} -d ${T17_POSTGRES_DB:-apicurio}"]
+      interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
-  flink-nats-taskmanager:
-    image: flink:1.20.2-scala_2.12-java17
-    profiles: ["t10"]
-    command: ["taskmanager"]
+  registry:
+    image: apicurio/apicurio-registry:3.0.6
+    hostname: registry
     environment:
-      - JOB_MANAGER_RPC_ADDRESS=flink-nats-jobmanager
-      - TASK_MANAGER_NUMBER_OF_TASK_SLOTS=1
-      - "FLINK_PROPERTIES=taskmanager.memory.process.size: 1728m"
+      APICURIO_STORAGE_KIND: "sql"
+      APICURIO_STORAGE_SQL_KIND: "postgresql"
+      APICURIO_DATASOURCE_URL: "jdbc:postgresql://registry-db:5432/${T17_POSTGRES_DB:-apicurio}"
+      APICURIO_DATASOURCE_USERNAME: "${T17_POSTGRES_USER:-apicurio}"
+      APICURIO_DATASOURCE_PASSWORD: "${T17_POSTGRES_PASSWORD:-apicurio}"
     depends_on:
-      flink-nats-jobmanager:
+      registry-db:
         condition: service_healthy
-    cpus: "${T10_FLINK_TM_CPUS:-0.5}"
-    mem_limit: "${T10_FLINK_TM_MEMORY:-2g}"
-    networks: [flink-nats-net]
+    cpus: "${T17_REGISTRY_CPUS:-1.0}"
+    mem_limit: "${T17_REGISTRY_MEMORY:-1g}"
+    ports:
+      - "8081:8080"
+    networks: [nats-net]
     healthcheck:
-      test: ["CMD-SHELL", "ps -ef | grep -q '[t]askexecutor'"]
-      interval: 15s
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready"]
+      interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 20
+      start_period: 20s
 
   order-simulator:
-    profiles: ["t04"]
-    image: kafkanuts/order-simulator:t04
+    image: kafkanuts/order-simulator:t17
     build:
       context: .
       dockerfile: Dockerfile.simulator
       args: {MODULE: order-simulator}
-    environment: ["TRANSPORT_MODE=${T04_ORDER_TRANSPORT:-kafka}"]
-    cpus: "${T04_SIMULATOR_CPUS:-0.5}"
-    mem_limit: "${T04_SIMULATOR_MEMORY:-512m}"
-    networks: [tooling-net]
+    environment:
+      - TRANSPORT_MODE=nats
+      - NATS_URL=nats://nats:4222
+      - REGISTRY_URL=http://registry:8080/apis/ccompat/v7
+    depends_on:
+      nats:
+        condition: service_healthy
+      registry:
+        condition: service_healthy
+    cpus: "${T17_SIMULATOR_CPUS:-0.5}"
+    mem_limit: "${T17_SIMULATOR_MEMORY:-512m}"
+    networks: [nats-net]
     healthcheck:
       test: ["CMD", "/bin/busybox", "wget", "-q", "-O-", "http://127.0.0.1:8080/health"]
       interval: 10s
@@ -192,16 +129,23 @@ services:
       start_period: 30s
 
   payment-simulator:
-    profiles: ["t04"]
-    image: kafkanuts/payment-simulator:t04
+    image: kafkanuts/payment-simulator:t17
     build:
       context: .
       dockerfile: Dockerfile.simulator
       args: {MODULE: payment-simulator}
-    environment: ["TRANSPORT_MODE=${T04_PAYMENT_TRANSPORT:-nats}"]
-    cpus: "${T04_SIMULATOR_CPUS:-0.5}"
-    mem_limit: "${T04_SIMULATOR_MEMORY:-512m}"
-    networks: [tooling-net]
+    environment:
+      - TRANSPORT_MODE=nats
+      - NATS_URL=nats://nats:4222
+      - REGISTRY_URL=http://registry:8080/apis/ccompat/v7
+    depends_on:
+      nats:
+        condition: service_healthy
+      registry:
+        condition: service_healthy
+    cpus: "${T17_SIMULATOR_CPUS:-0.5}"
+    mem_limit: "${T17_SIMULATOR_MEMORY:-512m}"
+    networks: [nats-net]
     healthcheck:
       test: ["CMD", "/bin/busybox", "wget", "-q", "-O-", "http://127.0.0.1:8080/health"]
       interval: 10s
@@ -210,16 +154,23 @@ services:
       start_period: 30s
 
   fulfillment-simulator:
-    profiles: ["t04"]
-    image: kafkanuts/fulfillment-simulator:t04
+    image: kafkanuts/fulfillment-simulator:t17
     build:
       context: .
       dockerfile: Dockerfile.simulator
       args: {MODULE: fulfillment-simulator}
-    environment: ["TRANSPORT_MODE=${T04_FULFILLMENT_TRANSPORT:-dual}"]
-    cpus: "${T04_SIMULATOR_CPUS:-0.5}"
-    mem_limit: "${T04_SIMULATOR_MEMORY:-512m}"
-    networks: [tooling-net]
+    environment:
+      - TRANSPORT_MODE=nats
+      - NATS_URL=nats://nats:4222
+      - REGISTRY_URL=http://registry:8080/apis/ccompat/v7
+    depends_on:
+      nats:
+        condition: service_healthy
+      registry:
+        condition: service_healthy
+    cpus: "${T17_SIMULATOR_CPUS:-0.5}"
+    mem_limit: "${T17_SIMULATOR_MEMORY:-512m}"
+    networks: [nats-net]
     healthcheck:
       test: ["CMD", "/bin/busybox", "wget", "-q", "-O-", "http://127.0.0.1:8080/health"]
       interval: 10s
@@ -227,62 +178,29 @@ services:
       retries: 5
       start_period: 30s
 
-  t04-verify:
-    profiles: ["t04"]
-    image: curlimages/curl:8.10.1
-    command: ["sh", "-ec", "for pair in order-simulator:kafka payment-simulator:nats fulfillment-simulator:dual; do service=$${pair%%:*}; mode=$${pair##*:}; response=$$(curl -fsS http://$$service:8080/health); echo $$response; echo $$response | grep -F '\"transportMode\":\"'$$mode'\"'; done"]
-    depends_on:
-      order-simulator:
-        condition: service_healthy
-      payment-simulator:
-        condition: service_healthy
-      fulfillment-simulator:
-        condition: service_healthy
-    networks: [tooling-net]
-
-  t04-smoke:
-    profiles: ["t04"]
+  smoke:
+    profiles: ["smoke"]
     build:
       context: .
       dockerfile: Dockerfile.test
-    command: ["mvn", "-B", "-ntp", "-pl", "modules/order-simulator,modules/payment-simulator,modules/fulfillment-simulator", "-am", "test"]
-    cpus: "${T04_SMOKE_CPUS:-1.0}"
-    mem_limit: "${T04_SMOKE_MEMORY:-1g}"
+    command: ["mvn", "-B", "-ntp", "test"]
+    cpus: "${T02_TEST_CPUS:-1.0}"
+    mem_limit: "${T02_TEST_MEMORY:-1g}"
     networks: [tooling-net]
     volumes: ["maven-cache:/root/.m2"]
 
-  t10-spike:
-    profiles: ["t10"]
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-    command: ["mvn", "-B", "-ntp", "-pl", "modules/flink-nats-spike", "-am", "test"]
-    environment:
-      - T10_LIVE=true
-      - T10_NATS_URL=nats://nats:4222
-    init: true
-    cpus: "${T10_SPIKE_CPUS:-1.0}"
-    mem_limit: "${T10_SPIKE_MEMORY:-1g}"
-    networks: [tooling-net, flink-nats-net]
-    depends_on:
-      nats:
-        condition: service_healthy
-      flink-nats-taskmanager:
-        condition: service_healthy
-    volumes:
-      - maven-cache:/root/.m2
-
 networks:
-  kafka-net:
-    name: ${T05_KAFKA_NETWORK_NAME:-kafkanuts-kafka}
-    driver: bridge
   tooling-net:
     name: ${T02_NETWORK_NAME:-kafkanuts-tooling}
     driver: bridge
-  flink-nats-net:
-    name: ${T10_NETWORK_NAME:-kafkanuts-flink-nats}
+  nats-net:
+    name: ${T17_NETWORK_NAME:-kafkanuts-nats}
     driver: bridge
 
 volumes:
   maven-cache:
     name: ${T02_MAVEN_CACHE_VOLUME:-kafkanuts-maven-cache}
+  nats-data:
+    name: ${T17_NATS_DATA_VOLUME:-kafkanuts-nats-data}
+  registry-db-data:
+    name: ${T17_POSTGRES_DATA_VOLUME:-kafkanuts-registry-db}

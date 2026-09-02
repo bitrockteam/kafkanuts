@@ -1,0 +1,50 @@
+{
+  "task": "T17",
+  "title": "Stack solo NATS JetStream e CI minima",
+  "result": "PASS",
+  "timestamp_utc": "2026-09-02T07:49:58Z",
+  "adr": ["0005-perimetro-qa-ridotto", "0006-solo-nats-jetstream"],
+  "archive_tag": "archive/kafka-flink-baseline-v0",
+  "checks": {
+    "compose_config": {
+      "status": "PASS",
+      "evidence": "docker compose config --quiet esce senza errori"
+    },
+    "build_and_unit_tests": {
+      "status": "PASS",
+      "evidence": "docker compose --profile test run --rm --no-deps --build test: BUILD SUCCESS sul reactor di 5 moduli, event-contracts, transport-core e i tre simulatori; nessun riferimento residuo ai moduli rimossi"
+    },
+    "stack_health": {
+      "status": "PASS",
+      "evidence": "docker compose up -d --wait: nats, registry-db, registry, order-simulator, payment-simulator, fulfillment-simulator tutti healthy"
+    },
+    "jetstream_enabled": {
+      "status": "PASS",
+      "evidence": "GET /varz riporta version 2.11.8 con blocco jetstream presente; GET /jsz riporta store_dir /data/jetstream su volume persistente"
+    },
+    "registry_ccompat": {
+      "status": "PASS",
+      "evidence": "GET /apis/ccompat/v7/subjects risponde 200 con lista vuota; Apicurio 3.0.6 su storage SQL PostgreSQL"
+    },
+    "kafka_and_flink_removed": {
+      "status": "PASS",
+      "evidence": "moduli kafka-baseline e flink-nats-spike rimossi dal pom e dal repository; servizi kafka, schema-registry, ksqldb, kafka-init e i cluster Flink assenti da compose.yaml; nessun riferimento residuo trovato nel sorgente"
+    },
+    "images_pinned": {
+      "status": "PASS",
+      "evidence": "nats:2.11.8-alpine, postgres:16.4-alpine, apicurio/apicurio-registry:3.0.6 verificate con docker manifest inspect"
+    },
+    "resource_guardrails": {
+      "status": "PASS",
+      "evidence": "ogni servizio dichiara cpus, mem_limit e healthcheck; budget dello stack circa 3 CPU"
+    }
+  },
+  "not_exercised": {
+    "jetstream_feature_suite": "Ack, redelivery, MaxDeliver, DLQ, deduplica, replay e restart con persistenza sono perimetro di T18. In T17 i simulatori dichiarano il trasporto nats ma non pubblicano ancora su JetStream.",
+    "avro_su_jetstream": "Round trip Avro con Apicurio via ccompat e' perimetro di T18. Il registry e' in piedi e risponde, ma nessuno schema e' ancora registrato.",
+    "dashboard_corrispondenza": "Perimetro di T18.",
+    "migrazione_parita_cutover_rollback": "Non dimostrabili e non simulati: Kafka e Confluent Schema Registry sono assenti dallo stack per ADR 0006.",
+    "prestazioni_capacita_ha": "Fuori perimetro per ADR 0005. Nessuna misura di latenza, throughput, capacita' o alta disponibilita' e' prodotta.",
+    "analisi_statica_sbom_firma": "Rimandate a v0.2.0. La CI esegue build, test, validazione compose e ricerca segreti."
+  }
+}

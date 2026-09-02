@@ -1,5 +1,8 @@
 # Architettura
 
+> **Parzialmente superata.** L'[ADR 0006](adr/0006-solo-nats-jetstream.md) ha ridotto l'architettura a un solo data plane NATS JetStream con Apicurio e tre simulatori. Le parti che descrivono Kafka, Confluent Schema Registry, ksqlDB e i cluster Flink documentano componenti rimossi dal repository, recuperabili dal tag `archive/kafka-flink-baseline-v0`.
+
+
 ## Vista logica
 
 ```text
