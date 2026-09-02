@@ -81,11 +81,17 @@ Nessuna migrazione viene eseguita. La corrispondenza con Confluent Platform e Ka
   - Pillole della tabella di corrispondenza rese acromatiche: il verde su «equivalente» si leggeva come un `PASS` misurato.
   - Gate: otto servizi healthy, flusso SSE con sequence reali ed eventi DLQ, suite 7/7.
 
+- [x] **T21 — README allineato alla demo NATS e release v0.2.1** (`DONE`, issue #32, gate `docs/gates/t21-gate.json`)
+  - Presentare per primo lo stack realmente eseguito: NATS JetStream, Apicurio, tre simulatori, console e dashboard.
+  - Spiegare in modo operativo l'avvio e l'URL `http://localhost:8090`, distinguendolo dalle porte NATS e monitoring.
+  - Spostare Kafka, migrazione, Flink e le altre capacità assenti in una sezione di evoluzione possibile.
+  - Release solo documentale: nessuna modifica al runtime e nessun avvio dello stack.
+
 ## Ordine
 
 Storico: `T01 || T02` → `T03` → `T10` → `T04` → `T05`.
 
-Wave `v0.1.0`: chiusa. Wave `v0.2.0`: `T19` → `T20`, chiusa.
+Wave `v0.1.0`: chiusa. Wave `v0.2.0`: `T19` → `T20`, chiusa. Patch documentale `v0.2.1`: `T21`, chiusa.
 
 Rimandati a `v0.3.0`: analisi statica, SBOM, provenance e firma della release, osservabilità, e l'arricchimento semantico del dominio — payload che evolvono, `PaymentRejected` distinto dal fallimento tecnico, `FulfillmentStarted`.
 
