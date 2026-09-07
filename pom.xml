@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-dependencies</artifactId>
-    <version>3.5.5</version>
+    <version>4.1.1</version>
     <relativePath />
   </parent>
   <groupId>com.bitrockteam.kafkanuts</groupId>
@@ -28,7 +28,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <junit.version>5.13.4</junit.version>
-    <spring-boot.version>3.5.5</spring-boot.version>
+    <spring-boot.version>4.1.1</spring-boot.version>
     <maven.compiler.version>3.14.0</maven.compiler.version>
     <maven.surefire.version>3.5.3</maven.surefire.version>
     <maven-checkstyle.version>3.6.0</maven-checkstyle.version>
