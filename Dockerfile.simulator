@@ -6,7 +6,7 @@ COPY modules modules
 COPY config config
 RUN mvn -B -ntp -pl modules/${MODULE} -am -DskipTests package
 
-FROM busybox:1.36.1-musl AS healthcheck
+FROM busybox:1.38.0-musl AS healthcheck
 
 FROM eclipse-temurin:21.0.8_9-jre
 ARG MODULE
