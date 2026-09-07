@@ -29,7 +29,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <junit.version>5.13.4</junit.version>
     <spring-boot.version>3.5.5</spring-boot.version>
-    <maven.compiler.version>3.14.0</maven.compiler.version>
+    <maven.compiler.version>3.16.0</maven.compiler.version>
     <maven.surefire.version>3.5.3</maven.surefire.version>
     <maven-checkstyle.version>3.6.0</maven-checkstyle.version>
     <spotbugs.version>4.9.7.0</spotbugs.version>
